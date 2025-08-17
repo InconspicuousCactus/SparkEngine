@@ -91,6 +91,11 @@ b8 renderer_draw_frame(render_packet_t* packet) {
 }
 
 mesh_t renderer_create_mesh(void* vertices, u32 vertex_count, u32 vertex_stride, void* indices, u32 index_count, u32 index_stride) {
+    if (index_count <= 0 || vertex_count <= 0) {
+        return (mesh_t) {
+            .internal_index = INVALID_ID,
+        };
+    }
     SASSERT(vertex_count > 0, "Cannot create a mesh without vertices");
     return vulkan_create_mesh(vertices, vertex_count, vertex_stride, indices, index_count, index_stride);
 }

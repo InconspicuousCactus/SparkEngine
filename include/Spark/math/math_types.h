@@ -18,9 +18,9 @@ typedef union vec3 {
 } vec3;
 
 typedef struct vec3i {
-    u32 x;
-    u32 y;
-    u32 z;
+    s32 x;
+    s32 y;
+    s32 z;
 } vec3i;
 
 typedef union vec4 {

@@ -198,6 +198,7 @@ void simplex_2d_int_simd_octaves(s32 seed, vec2i pos, vec2i size, s32 scale, u32
  * @return Simplex noise value
  */
 void simplex_2d_int_simd(s32 seed, vec2i pos, vec2i size, s32 scale, s32* out_noise) {
+    SASSERT(((size_t)out_noise & 31) == 0, "Cannot write simplex data to noise buffer: Buffer not aligned to 0x20 bytes (%p)", out_noise);
     // Constants
     const __m256i scale_simd = _mm256_set1_epi32(scale);
     const s32 add_vector[8] __attribute__((aligned (32))) = { 0, 1, 2, 3, 4, 5, 6, 7 };

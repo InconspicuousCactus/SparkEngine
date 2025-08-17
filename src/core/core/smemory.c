@@ -129,8 +129,8 @@ pvt_sallocate(u64 size, memory_tag_t tag) {
     state_ptr.stats.tagged_allocations[tag] += size;
 
     void* block = platform_allocate(size, true);
-    // void* block = dynamic_allocator_allocate(&state_ptr.allocator, size);
     platform_zero_memory(block, size);
+    // void* block = dynamic_allocator_allocate(&state_ptr.allocator, size);
     return block;
 }
 

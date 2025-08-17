@@ -280,7 +280,7 @@ b8 platform_pump_messages(platform_state_t* plat_state) {
 }
 
 void* platform_allocate(u64 size, b8 aligned) {
-    return malloc(size);
+    return aligned_alloc(0x20, size);
 }
 void platform_free(const void* block, b8 aligned) {
     free((void*)block);

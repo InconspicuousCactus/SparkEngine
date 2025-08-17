@@ -30,7 +30,6 @@
 #include "Spark/resources/loaders/shader_loader.h"
 #include "Spark/resources/resource_loader.h"
 #include "Spark/resources/resource_types.h"
-#include "Spark/types/s3d.h"
 #include <vulkan/vulkan_core.h>
 
 vulkan_context_t* context = NULL;

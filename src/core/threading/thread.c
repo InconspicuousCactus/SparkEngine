@@ -3,6 +3,7 @@
 #include <bits/pthreadtypes.h>
 #include <pthread.h>
 #include <signal.h>
+#include <unistd.h>
 #define MAX_THREAD_COUNT 512
 
 typedef struct { 
@@ -12,7 +13,7 @@ typedef struct {
 
 internal_thread_t internal_threads[MAX_THREAD_COUNT];
 
-b8 thread_start(void (*function(void* args)), void* args, thread_t* out_thread) {
+void thread_create(void (*function(void* args)), void* args, thread_t* out_thread) {
     // Find valid thread ID
     u32 thread_id = INVALID_ID;
     for (u32 i = 0; i < MAX_THREAD_COUNT; i++) {
@@ -24,7 +25,8 @@ b8 thread_start(void (*function(void* args)), void* args, thread_t* out_thread) 
 
     if (thread_id == INVALID_ID) {
         SERROR("Failed to find open thread.");
-        return false;
+        out_thread->thread_id = INVALID_ID;
+        return;
     }
 
     // Remember the current internal thread state
@@ -35,9 +37,11 @@ b8 thread_start(void (*function(void* args)), void* args, thread_t* out_thread) 
 
     // Start the thread
     pthread_create(&internal_threads[thread_id].thread, NULL, function, args);
+}
 
-    // Return success
-    return true;
+void thread_destroy(thread_t* thread) {
+    SASSERT(thread->thread_id != INVALID_ID, "Cannot destroy invalid thread.");
+    internal_threads[thread->thread_id].state = THREAD_STATE_INVALID;
 }
 
 void thread_join(thread_t thread) {
@@ -49,3 +53,6 @@ void thread_abort(thread_t thread) {
     pthread_kill(internal_threads[thread.thread_id].thread, 0);
 }
 
+void thread_sleep(thread_t* thread, u32 time_us) {
+    usleep(time_us);
+}

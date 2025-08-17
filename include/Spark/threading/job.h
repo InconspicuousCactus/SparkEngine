@@ -1,4 +1,5 @@
 #pragma once
+#include "Spark/defines.h"
 
 typedef enum : u8 {
     JOB_STATE_EMPTY,
@@ -11,7 +12,7 @@ typedef enum : u8 {
 
 typedef struct {
     void (*job_function)(void* arg);
-    void (*completion_callback)();
+    void (*complete_callback)();
     void* args;
     u32 arg_size;
     s16 job_priority;

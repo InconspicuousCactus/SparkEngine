@@ -72,7 +72,8 @@ resource_t resource_loader_get_resource(const char* path, b8 auto_delete) {
     // Load file
     // Load the bytes
     file_handle_t file_handle;
-    filesystem_open(path, FILE_MODE_READ, true, &file_handle);
+    b8 opened_file = filesystem_open(path, FILE_MODE_READ, true, &file_handle);
+    SASSERT(opened_file, "Failed to open resource at path '%s'", path);
 
     u64 file_size = 0;
     filesystem_size(&file_handle, &file_size);
