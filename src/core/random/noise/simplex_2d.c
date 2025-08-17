@@ -145,6 +145,52 @@ s32 simplex_2d_int(const s32 seed, vec2i pos) {
     return noise;
 }
 
+void simplex_2d_int_simd_octaves(s32 seed, vec2i pos, vec2i size, s32 scale, u32 octaves, s32 persistance, s32 lacunarity, s32* out_noise) {
+    // Constants
+    const __m256i scale_simd = _mm256_set1_epi32(scale);
+    const __m256i lacunarity_simd = _mm256_set1_epi32(lacunarity);
+    const __m256i persistance_simd = _mm256_set1_epi32(persistance);
+    const s32 add_vector[8] __attribute__((aligned (32))) = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    const u32 simd_size = sizeof(__m256i) / 4;
+
+    __m256i add = _mm256_stream_load_si256((const void*)add_vector);
+            add = _mm256_mullo_epi32(add, scale_simd);
+
+    for (u32 _y = 0, index = 0; _y < size.y; _y++) {
+        for (u32 _x = 0; _x < size.x; _x += simd_size, index++) {
+            __m256i y = _mm256_set1_epi32((pos.y + _y) * scale);
+            __m256i x = _mm256_add_epi32(add, _mm256_set1_epi32((pos.x + _x) * scale));
+
+            __m256i noise = _mm256_set1_epi32(0);
+            __m256i per_simd = _mm256_set1_epi32(INT_ONE);
+            for (u32 i = 0; i < octaves; i++) {
+                __m256i tmp;
+                simplex_2d_int_simd_row(seed, x, y, &tmp);
+
+                // tmp *= per
+                tmp = _mm256_mullo_epi32(tmp, per_simd);
+                tmp = _mm256_srai_epi32(tmp, INT_ONE_BIT_COUNT);
+
+                // Noise += tmp
+                noise  = _mm256_add_epi32(tmp, noise);
+
+                // (x,y) *= lac
+                x = _mm256_mullo_epi32(x, lacunarity_simd);
+                x = _mm256_srai_epi32(x, INT_ONE_BIT_COUNT);
+                y = _mm256_mullo_epi32(y, lacunarity_simd);
+                y = _mm256_srai_epi32(y, INT_ONE_BIT_COUNT);
+
+                // per *= persistance
+                per_simd = _mm256_mullo_epi32(persistance_simd, per_simd);
+                per_simd = _mm256_srai_epi32(per_simd, INT_ONE_BIT_COUNT);
+            }
+
+            __m256i* output = (__m256i*)out_noise + index;
+            _mm256_store_si256(output, noise);
+        }
+    }
+}
+
 /**
  * @brief Simplex noise using integers instead of floats. INT_ONE maps to 1.0
  *
@@ -158,7 +204,7 @@ void simplex_2d_int_simd(s32 seed, vec2i pos, vec2i size, s32 scale, s32* out_no
     const u32 simd_size = sizeof(__m256i) / 4;
 
     __m256i add = _mm256_stream_load_si256((const void*)add_vector);
-            add = _mm256_mullo_epi32(add, scale_simd);
+    add = _mm256_mullo_epi32(add, scale_simd);
 
     for (u32 _y = 0, index = 0; _y < size.y; _y++) {
         const __m256i y = _mm256_set1_epi32((pos.y + _y) * scale);
@@ -183,20 +229,20 @@ void simplex_2d_int_simd_row(const u32 seed, __m256i x, __m256i y, __m256i* outp
     // Calculate skew and grid position
     const __m256i pos_sum = _mm256_add_epi32(x, y);
     __m256i f = _mm256_set1_epi32((s32)(F2 * INT_ONE));
-            f = _mm256_mullo_epi32(f, pos_sum);
-            f = _mm256_srai_epi32(f, INT_ONE_BIT_COUNT);
+    f = _mm256_mullo_epi32(f, pos_sum);
+    f = _mm256_srai_epi32(f, INT_ONE_BIT_COUNT);
 
     __m256i x0 = _mm256_add_epi32(x, f);
-            x0 = _mm256_and_si256(x0, INT_ONE_FLOOR_MASK);
+    x0 = _mm256_and_si256(x0, INT_ONE_FLOOR_MASK);
     __m256i y0 = _mm256_add_epi32(y, f);
-            y0 = _mm256_and_si256(y0, INT_ONE_FLOOR_MASK);
+    y0 = _mm256_and_si256(y0, INT_ONE_FLOOR_MASK);
 
     __m256i i = _mm256_mullo_epi32(_mm256_srai_epi32(x0, INT_ONE_BIT_COUNT), x_prime);
     __m256i j = _mm256_mullo_epi32(_mm256_srai_epi32(y0, INT_ONE_BIT_COUNT), y_prime);
 
     __m256i g = _mm256_add_epi32(x0, y0);
-            g = _mm256_mullo_epi32(SIMD_G2, g);
-            g = _mm256_srai_epi32(g, INT_ONE_BIT_COUNT);
+    g = _mm256_mullo_epi32(SIMD_G2, g);
+    g = _mm256_srai_epi32(g, INT_ONE_BIT_COUNT);
 
     // Calculate x0,x1,x2, y0,y1,y2
     x0 = _mm256_sub_epi32(x, _mm256_sub_epi32(x0, g));
@@ -207,13 +253,13 @@ void simplex_2d_int_simd_row(const u32 seed, __m256i x, __m256i y, __m256i* outp
     // s32 x1 = i1 ? x0 - INT_ONE : x0;
     // s32 y1 = i1 ? y0           : y0 - INT_ONE;
     __m256i x1 = _mm256_blendv_epi8(x0, _mm256_sub_epi32(x0, SIMD_INT_ONE), i1);
-            x1 = _mm256_add_epi32(x1, SIMD_G2);
+    x1 = _mm256_add_epi32(x1, SIMD_G2);
     __m256i y1 = _mm256_blendv_epi8(_mm256_sub_epi32(y0, SIMD_INT_ONE), y0, i1);
-            y1 = _mm256_add_epi32(y1, SIMD_G2);
+    y1 = _mm256_add_epi32(y1, SIMD_G2);
 
     __m256i x2 = _mm256_add_epi32(x0, SIMD_TWO_G2_MINUS_ONE);
     __m256i y2 = _mm256_add_epi32(y0, SIMD_TWO_G2_MINUS_ONE);
-    
+
     // Calculate interpolation values
     __m256i t0 = simd_calculate_t(x0, y0);
     __m256i t1 = simd_calculate_t(x1, y1);
@@ -242,8 +288,8 @@ void simplex_2d_int_simd_row(const u32 seed, __m256i x, __m256i y, __m256i* outp
 
     // Calculate noise
     __m256i noise = _mm256_add_epi32(_mm256_add_epi32(n0, n1), n2);
-            noise = _mm256_mullo_epi32(noise, _mm256_set1_epi32(noise_multiplier));
-            noise = _mm256_srai_epi32 (noise, INT_ONE_BIT_COUNT);
+    noise = _mm256_mullo_epi32(noise, _mm256_set1_epi32(noise_multiplier));
+    noise = _mm256_srai_epi32 (noise, INT_ONE_BIT_COUNT);
 
     // Store result
     _mm256_store_si256(output, noise);
@@ -383,14 +429,14 @@ s32 get_gradient_dot_fancy_int(s32 hash, s32 fX, s32 fY ) {
 
 SINLINE __m256i simd_get_gradient_dot_fancy(__m256i hash, __m256i fx, __m256i fy) {
 
-            //     int32v index = FS_Convertf32_i32( FS_Converti32_f32( hash & int32v( 0x3FFFFF ) ) * float32v( 1.3333333333333333f ) );
-            //
-            // float32v gX = _mm256_permutevar8x32_ps( float32v( ROOT3, ROOT3, 2, 2, 1, -1, 0, 0 ), index );
-            // float32v gY = _mm256_permutevar8x32_ps( float32v( 1, -1, 0, 0, ROOT3, ROOT3, 2, 2 ), index );
-            //
-            // // Bit-8 = Flip sign of a + b
-            // return FS_FMulAdd_f32( gX, fX, fY * gY ) ^ FS_Casti32_f32( (index >> 3) << 31 );
-            //
+    //     int32v index = FS_Convertf32_i32( FS_Converti32_f32( hash & int32v( 0x3FFFFF ) ) * float32v( 1.3333333333333333f ) );
+    //
+    // float32v gX = _mm256_permutevar8x32_ps( float32v( ROOT3, ROOT3, 2, 2, 1, -1, 0, 0 ), index );
+    // float32v gY = _mm256_permutevar8x32_ps( float32v( 1, -1, 0, 0, ROOT3, ROOT3, 2, 2 ), index );
+    //
+    // // Bit-8 = Flip sign of a + b
+    // return FS_FMulAdd_f32( gX, fX, fY * gY ) ^ FS_Casti32_f32( (index >> 3) << 31 );
+    //
     //
     // __m256i SIMD_ZERO = _mm256_set1_epi32(0);
     //
