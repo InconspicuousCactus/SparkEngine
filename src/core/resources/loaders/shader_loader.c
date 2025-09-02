@@ -2,6 +2,7 @@
 #include "Spark/core/sstring.h"
 #include "Spark/memory/linear_allocator.h"
 #include "Spark/renderer/renderer_frontend.h"
+#include "Spark/renderer/renderpasses.h"
 #include "Spark/renderer/shader.h"
 #include "Spark/resources/loaders/loader_utils.h"
 #include "Spark/resources/resource_types.h"
@@ -92,6 +93,8 @@ resource_t pvt_shader_loader_load_text_resource(const char* text, u32 length, b8
                     config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_COLOR2;
                 } else if (string_equal(attribute, "color3")) {
                     config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_COLOR3;
+                } else if (string_equal(attribute, "int")) {
+                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_INT;
                 } else {
                     SWARN("Shader '%s' has unknown attribute '%s'", attribute);
                 }
@@ -131,12 +134,12 @@ resource_t pvt_shader_loader_load_text_resource(const char* text, u32 length, b8
             config.layout[resource_index].set = set;
         } else if (string_equal(arg_buffer[0], "type")) {
             if (string_equal(arg_buffer[1], "3d")) {
-                config.type = SHADER_TYPE_3D;
+                config.type = BUILTIN_RENDERPASS_WORLD;
             } else if (string_equali(arg_buffer[1], "ui")) {
-                config.type = SHADER_TYPE_UI;
+                config.type = BUILTIN_RENDERPASS_UI;
             } else {
                 SWARN("Unknown shader type '%s': Defaulting to 3d.", arg_buffer[1]);
-                config.type = SHADER_TYPE_3D;
+                config.type = BUILTIN_RENDERPASS_WORLD;
             }
         } else {
             SWARN("Failed to get shader resource key: '%s'", arg_buffer[0]);

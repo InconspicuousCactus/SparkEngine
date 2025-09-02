@@ -62,7 +62,7 @@ darray_header(entity_record_t, entity_record);
 // ================================
 struct entity_archetype;
 darray_header(struct entity_archetype*, entity_archetype_ptr);
-hashmap_header(ecs_component_id, struct entity_archetype*, entity_archetype_ptr_map);
+hashmap_header(entity_archetype_ptr_map, ecs_component_id, struct entity_archetype*);
 
 typedef struct entity_archetype_edge {
     entity_archetype_ptr_map_t add_edges;

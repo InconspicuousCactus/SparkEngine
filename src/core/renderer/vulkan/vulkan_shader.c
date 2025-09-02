@@ -98,7 +98,7 @@ void vulkan_shader_create(struct vulkan_context* context,
     VkVertexInputAttributeDescription vertex_attribute_descriptions[SHADER_MAX_VERTEX_ATTRIBUTES];
     u32 vertex_stride = 0;
     for (u32 i = 0, offset = 0; i < vertex_attribute_count; i++) {
-        VkFormat format;
+        VkFormat format = VK_FORMAT_UNDEFINED;
         u32 stride = 0;
         switch (vertex_attributes[i]) {
         case VERTEX_ATTRIBUTE_NONE:
@@ -150,7 +150,12 @@ void vulkan_shader_create(struct vulkan_context* context,
             format = VK_FORMAT_R32G32_SFLOAT;
             stride = sizeof(vec2);
             break;
+        case VERTEX_ATTRIBUTE_INT:
+            format = VK_FORMAT_R32_SINT;
+            stride = sizeof(s32);
+            break;
         }
+        SASSERT(format != VK_FORMAT_UNDEFINED, "Vulkan shadder failed to select format for attribute 0x%x", vertex_attributes[i]);
         vertex_attribute_descriptions[i] = 
             (VkVertexInputAttributeDescription) {
                 .binding = 0,
@@ -394,7 +399,7 @@ void create_shader_descriptors(vulkan_context_t* context, u32 set, u32 resource_
                 bindings[binding_count].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 bindings[binding_count].pImmutableSamplers = NULL;
                 break;
-            }
+        }
 
         binding_count++;
     }

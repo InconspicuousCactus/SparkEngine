@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Spark/renderer/renderpasses.h"
 #include "Spark/types/s3d.h"
 #include "Spark/containers/darray.h"
 
@@ -20,12 +21,6 @@ typedef enum shader_resource_type : u8 {
     SHADER_RESOURCE_SAMPLER,
 } shader_resource_type_t;
 
-typedef enum shader_type : u8 {
-    SHADER_TYPE_UNDEFINED,
-    SHADER_TYPE_3D,
-    SHADER_TYPE_UI,
-} shader_type_t;
-
 typedef struct shader_resource_layout {
     shader_stage_flags_t stage : 4;
     shader_resource_type_t type : 4; 
@@ -44,7 +39,7 @@ typedef struct shader {
     u32 internal_index;
     shader_resource_layout_t layout[SHADER_MAX_RESOURCES];
     vertex_attributes_t attributes[SHADER_MAX_ATTRIBUTES];
-    shader_type_t type;
+    builtin_renderpass_t type;
     u8 resource_count;
     u8 attribute_count;
 #ifdef SPARK_DEBUG
@@ -62,5 +57,5 @@ typedef struct shader_config {
     u8 resource_count;
     u8 attribute_count;
     shader_stage_flags_t stages;
-    shader_type_t type;
+    builtin_renderpass_t type;
 } shader_config_t;

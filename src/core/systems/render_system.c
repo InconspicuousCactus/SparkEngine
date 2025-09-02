@@ -137,8 +137,8 @@ void render_cameras(ecs_iterator_t* iterator) {
         darray_geometry_render_data_clear(&render_state.render_data);
         ecs_query_iterate(render_state.render_entities_query, render_entities);
 
-        packet.geometry_count = render_state.render_data.count;
-        packet.geometries = render_state.render_data.data;
+        packet.renderpass_geometry[BUILTIN_RENDERPASS_WORLD].geometry_count = render_state.render_data.count;
+        packet.renderpass_geometry[BUILTIN_RENDERPASS_WORLD].geometry = render_state.render_data.data;
 
 
         // qsort(packet.geometries, packet.geometry_count, sizeof(geometry_render_data_t), sort_geometry);
@@ -148,7 +148,7 @@ void render_cameras(ecs_iterator_t* iterator) {
         //     SDEBUG("Rendering entity %d at distance %f", e, distance);
         // }
 
-        if (packet.geometry_count > 0) {
+        if (packet.renderpass_geometry[BUILTIN_RENDERPASS_WORLD].geometry_count > 0) {
             renderer_draw_frame(&packet);
         }
         darray_geometry_render_data_clear(&render_state.render_data);

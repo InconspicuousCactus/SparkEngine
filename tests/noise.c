@@ -19,7 +19,7 @@ int main() {
     for (u32 y = 0; y < SAMPLE_SIZE; y++) {
         for (u32 x = 0; x < SAMPLE_SIZE; x++) {
             vec2i posi = { .x = (x - SAMPLE_SIZE / 2) * int_scale, (y - SAMPLE_SIZE / 2) * int_scale };
-            s32 value = simplex_2d_int(posi);
+            s32 value = simplex_2d_int(0, posi);
             if (value < 0) {
                 value *= -1;
             }

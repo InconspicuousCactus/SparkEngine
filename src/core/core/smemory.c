@@ -267,7 +267,7 @@ create_tracked_allocation(u64 size, memory_tag_t tag, const char* file, u32 line
 
     // char* backtrace_string = dynamic_allocator_allocate(&state_ptr.allocator, 0x1000);
     // char* backtrace_string = platform_allocate(0x1000, MEMORY_TAG_STRING);
-    char* backtrace_string = NULL;
+    // char* backtrace_string = NULL;
     // szero_memory(backtrace_string, 0x1000);
     // for (u32 i = 1, offset = 0; i < backtrace_pointer_count; i++) {
     //
@@ -282,28 +282,28 @@ create_tracked_allocation(u64 size, memory_tag_t tag, const char* file, u32 line
     //     offset += len;
     // }
 
-    allocation_info_t info = {
-        .file = file,
-        .line = line,
-        .tag = tag,
-        .size = size,
-        .block = block,
-        .backtrace = backtrace_string,
-    };
-
-    if (tracked_allocations) {
-        // Ensure that the darray doesnt try to allocate itself in an infinite loop by managing it here
-        if (allocation_count >= allocation_capacity) {
-            allocation_info_t* old_allocations = tracked_allocations;
-            tracked_allocations = pvt_sallocate(allocation_capacity * 2 * sizeof(allocation_info_t), MEMORY_TAG_ARRAY);
-
-            scopy_memory(tracked_allocations, old_allocations, allocation_count * sizeof(allocation_info_t));
-            pvt_spark_free(old_allocations, sizeof(allocation_info_t) * allocation_capacity, MEMORY_TAG_ARRAY);
-            allocation_capacity *= 2;
-        }
-
-        tracked_allocations[allocation_count++] = info;
-    }
+    // allocation_info_t info = {
+    //     .file = file,
+    //     .line = line,
+    //     .tag = tag,
+    //     .size = size,
+    //     .block = block,
+    //     .backtrace = backtrace_string,
+    // };
+    //
+    // if (tracked_allocations) {
+    //     // Ensure that the darray doesnt try to allocate itself in an infinite loop by managing it here
+    //     if (allocation_count >= allocation_capacity) {
+    //         allocation_info_t* old_allocations = tracked_allocations;
+    //         tracked_allocations = pvt_sallocate(allocation_capacity * 2 * sizeof(allocation_info_t), MEMORY_TAG_ARRAY);
+    //
+    //         scopy_memory(tracked_allocations, old_allocations, allocation_count * sizeof(allocation_info_t));
+    //         pvt_spark_free(old_allocations, sizeof(allocation_info_t) * allocation_capacity, MEMORY_TAG_ARRAY);
+    //         allocation_capacity *= 2;
+    //     }
+    //
+    //     tracked_allocations[allocation_count++] = info;
+    // }
 
     return block;
 }

@@ -7,6 +7,7 @@
 #include "Spark/renderer/material.h"
 #include "Spark/renderer/mesh.h"
 #include "Spark/renderer/renderer_types.h"
+#include "Spark/renderer/renderpasses.h"
 #include "Spark/renderer/shader.h"
 #include "Spark/renderer/texture.h"
 #include "Spark/renderer/vulkan/vulkan_buffer.h"
@@ -198,8 +199,9 @@ b8 vulkan_renderer_shutdown() {
     vulkan_buffer_destroy(context, &context->index_buffer);
     vulkan_buffer_destroy(context, &context->instance_buffer);
 
-    vulkan_renderpass_destroy(context, &context->main_renderpass);
-    vulkan_renderpass_destroy(context, &context->ui_renderpass);
+    for (u32 i = 0; i < BUILTIN_RENDERPASS_MAX; i++) {
+        vulkan_renderpass_destroy(context, &context->renderpasses[i]);
+    }
 
     for (u32 i = 0; i < SWAPCHAIN_MAX_IMAGE_COUNT; i++) {
         vulkan_semaphor_destroy(context, context->present_complete_semaphores[i]);
@@ -250,11 +252,13 @@ void vulkan_renderer_resize(u16 width, u16 height) {
     context->screen_width = width;
     context->screen_height = height;
     vulkan_swapchain_recreate(context, &context->swapchain);
-    vulkan_renderpass_update_framebuffers(context, &context->main_renderpass);
-    vulkan_renderpass_update_framebuffers(context, &context->ui_renderpass);
+
+    for (u32 i = 0; i < BUILTIN_RENDERPASS_MAX; i++) {
+        vulkan_renderpass_update_framebuffers(context, &context->renderpasses[i]);
+    }
 }
 
-void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, render_packet_t* packet, shader_type_t filter, VkRect2D render_area) {
+void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, render_packet_t* packet, builtin_renderpass_t filter, VkRect2D render_area) {
     vulkan_renderpass_begin(renderpass, command_buffer, render_area, context->image_index);
     VkViewport viewport = {
         .x = 0,
@@ -322,52 +326,47 @@ b8 vulkan_renderer_draw_frame(render_packet_t* packet) {
     u32 old_mesh = INVALID_ID;
     u32 old_material = INVALID_ID;
     VkDrawIndexedIndirectCommand command = {};
-    for (u32 i = 0, instance_offset = 0, command_index = 0; i < packet->geometry_count; i++, instance_offset++) {
-        geometry_render_data_t* geometry = &packet->geometries[i];
-        darray_mat4_push(&context->local_instance_buffer, geometry->model);
+    for (u32 renderpass_index = 0; renderpass_index < BUILTIN_RENDERPASS_MAX; renderpass_index++) {
+        const renderpass_geometry_t* renderpass = &packet->renderpass_geometry[renderpass_index];
 
-        vulkan_mesh_t* mesh = &context->meshes.data[geometry->mesh.internal_index];
-        u32 material = geometry->material->internal_index;
+        for (u32 i = 0, instance_offset = 0, command_index = 0; i < renderpass->geometry_count; i++, instance_offset++) {
+            geometry_render_data_t* geometry = &renderpass->geometry[i];
+            darray_mat4_push(&context->local_instance_buffer, geometry->model);
 
-        // Just modify command if its the same exact call
-        b8 is_instance = geometry->mesh.internal_index == old_mesh && material == old_material;
-        if (!is_instance || i == packet->geometry_count - 1) {
-            // Otherwise, its a new command and needs to be submitted
-            draw_info = 
-                (indirect_draw_info_t) {
-                    .material_index = material,
-                    .command_index = command_index++,
-                };
+            vulkan_mesh_t* mesh = &context->meshes.data[geometry->mesh.internal_index];
+            u32 material = geometry->material->internal_index;
 
-            switch (shader_loader_get_shader(geometry->material->shader_index)->type) {
-                case SHADER_TYPE_UNDEFINED:
-                    SERROR("Cannot indirect render undefined shader type.");
-                    break;
-                case SHADER_TYPE_3D:
-                    draw_info.shader_type = SHADER_TYPE_3D;
-                    break;
-                case SHADER_TYPE_UI:
-                    draw_info.shader_type = SHADER_TYPE_UI;
-                    break;
+            // Just modify command if its the same exact call
+            b8 is_instance = geometry->mesh.internal_index == old_mesh && material == old_material;
+            if (!is_instance || i == renderpass->geometry_count - 1) {
+                // Otherwise, its a new command and needs to be submitted
+                draw_info = 
+                    (indirect_draw_info_t) {
+                        .material_index = material,
+                        .command_index = command_index++,
+                    };
+
+                // TODO: Refactor shader type to be the builtin renderpass
+                draw_info.shader_type = shader_loader_get_shader(geometry->material->shader_index)->type;
+                darray_VkDrawIndexedIndirectCommand_push(&indirect_info->commands, command);
+                darray_indirect_draw_info_push(&indirect_info->draws, draw_info);
             }
-            darray_VkDrawIndexedIndirectCommand_push(&indirect_info->commands, command);
-            darray_indirect_draw_info_push(&indirect_info->draws, draw_info);
-        }
-        if (is_instance) {
-            command.instanceCount++;
-            continue;
-        } 
+            if (is_instance) {
+                command.instanceCount++;
+                continue;
+            } 
 
-        old_material = geometry->material->internal_index;
-        old_mesh = geometry->mesh.internal_index;
-        command = 
-            (VkDrawIndexedIndirectCommand) {
-                .firstIndex = mesh->index_start,
-                .firstInstance = instance_offset,
-                .indexCount = mesh->index_count,
-                .instanceCount = 1,
-                .vertexOffset = mesh->vertex_start,
-            };
+            old_material = geometry->material->internal_index;
+            old_mesh = geometry->mesh.internal_index;
+            command = 
+                (VkDrawIndexedIndirectCommand) {
+                    .firstIndex = mesh->index_start,
+                    .firstInstance = instance_offset,
+                    .indexCount = mesh->index_count,
+                    .instanceCount = 1,
+                    .vertexOffset = mesh->vertex_start,
+                };
+        }
     }
 
     vulkan_buffer_update(context, &indirect_info->buffer, indirect_info->commands.data, indirect_info->commands.count * sizeof(VkDrawIndexedIndirectCommand), 0);
@@ -381,8 +380,15 @@ b8 vulkan_renderer_draw_frame(render_packet_t* packet) {
 
 
     // Draw all of the geometry
-    render_geometry_in_pass(&context->main_renderpass, command_buffer, packet, SHADER_TYPE_3D, render_area);
-    // render_geometry_in_pass(&context->ui_renderpass, command_buffer, packet, SHADER_TYPE_UI, render_area);
+    for (u32 i = 0; i < BUILTIN_RENDERPASS_MAX; i++) {
+        switch ((builtin_renderpass_t)i) {
+            case BUILTIN_RENDERPASS_SKYBOX:
+                break;
+            default:
+                render_geometry_in_pass(&context->renderpasses[i], command_buffer, packet, i, render_area);
+                break;
+        }
+    }
     return true;
 }
 
@@ -467,20 +473,8 @@ shader_t vulkan_create_shader(shader_config_t* config) {
         vulkan_shader_module_create_from_file(context, module_path, &shader.frag);
     }
 
-    vulkan_renderpass_t* renderpass = NULL;
-    switch (config->type) {
-        case SHADER_TYPE_UNDEFINED:
-            SWARN("Cannot create shader with undefined type. Defaulting to 3D shader");
-            renderpass = &context->main_renderpass;
-            config->type = SHADER_TYPE_3D;
-            break;
-        case SHADER_TYPE_3D:
-            renderpass = &context->main_renderpass;
-            break;
-        case SHADER_TYPE_UI:
-            renderpass = &context->ui_renderpass;
-            break;
-    }
+    SASSERT(config->type >= 0 && config->type < BUILTIN_RENDERPASS_MAX, "Cannot create shader for invalid renderpass: %d", config->type);
+    vulkan_renderpass_t* renderpass = &context->renderpasses[config->type];
     vulkan_shader_create(context, renderpass, 0, config->attribute_count, config->attributes, config->resource_count, config->layout, true, &shader);
 
     // Bind shader globals
@@ -515,14 +509,16 @@ shader_t vulkan_create_shader(shader_config_t* config) {
     };
 
     switch (config->type) {
-        case SHADER_TYPE_UNDEFINED:
-            SERROR("Cannot update undefined shader globals");
+        case BUILTIN_RENDERPASS_SKYBOX:
+            SERROR("Skybox renderpass not implemented.");
             break;
-        case SHADER_TYPE_3D:
+        case BUILTIN_RENDERPASS_WORLD:
             vulkan_shader_bind_resources(context, &shader, 0, 2, uniform_resource);
             break;
-        case SHADER_TYPE_UI:
+        case BUILTIN_RENDERPASS_UI:
             vulkan_shader_bind_resources(context, &shader, 0, 1, &ui_uniform_resource);
+            break;
+        case BUILTIN_RENDERPASS_MAX:
             break;
     }
 
@@ -1171,7 +1167,8 @@ void create_renderpasses() {
         }
     };
 
-    vulkan_renderpass_create(context, clear_color, true, true, context->screen_width, context->screen_height, &context->main_renderpass);
-    vulkan_renderpass_create(context, clear_color, false, false, context->screen_width, context->screen_height, &context->ui_renderpass);
+    vulkan_renderpass_create(context, clear_color, false, false, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_SKYBOX]);
+    vulkan_renderpass_create(context, clear_color, true, true,   context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_WORLD]); 
+    vulkan_renderpass_create(context, clear_color, false, false, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_UI]);
 }
 

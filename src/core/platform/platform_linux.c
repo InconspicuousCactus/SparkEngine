@@ -280,7 +280,13 @@ b8 platform_pump_messages(platform_state_t* plat_state) {
 }
 
 void* platform_allocate(u64 size, b8 aligned) {
-    return aligned_alloc(0x20, size);
+    if (aligned) {
+        const u32 alignment = 32;
+        u32 _size = size + alignment - (size & (alignment - 1));
+        return aligned_alloc(alignment, _size);
+    } else {
+        return malloc(size);
+    }
 }
 void platform_free(const void* block, b8 aligned) {
     free((void*)block);
@@ -420,7 +426,7 @@ keycode_t translate_keycode(u32 x_keycode) {
             return KEY_PRINT;
         case XK_Execute:
             return KEY_EXECUTE;
-        // case XK_snapshot: return KEY_SNAPSHOT; // not supported
+            // case XK_snapshot: return KEY_SNAPSHOT; // not supported
         case XK_Insert:
             return KEY_INSERT;
         case XK_Delete:
@@ -631,8 +637,8 @@ keycode_t translate_keycode(u32 x_keycode) {
         case XK_z:
         case XK_Z:
             return KEY_Z;
-        /*case 0xFE08:*/
-        /*    return KEY_SPACE;*/
+            /*case 0xFE08:*/
+            /*    return KEY_SPACE;*/
 
         default:
             SWARN("Invalid linux keycode pressed: %x", x_keycode);
@@ -641,7 +647,7 @@ keycode_t translate_keycode(u32 x_keycode) {
 }
 
 void platform_set_cursor_position(platform_state_t* plat_state, s16 x, s16 y) {
-    internal_state* state = (internal_state*)plat_state->internal_state;
+    // internal_state* state = (internal_state*)plat_state->internal_state;
     // xcb_warp_pointer(state->connection, XCB_NONE, XCB_NONE, 0, 0, 0, 0, x, y);
 }
 

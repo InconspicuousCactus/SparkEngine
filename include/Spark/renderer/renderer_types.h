@@ -1,4 +1,5 @@
 #pragma once
+#include "Spark/renderer/renderpasses.h"
 #include "Spark/defines.h"
 #include "Spark/math/mat4.h"
 #include "Spark/math/math_types.h"
@@ -6,7 +7,6 @@
 #include "Spark/renderer/material.h"
 #include "Spark/renderer/mesh.h"
 #include "Spark/renderer/texture.h"
-#include "Spark/resources/resource_types.h"
 
 typedef enum {
     RENDERER_BACKEND_GLFW,
@@ -21,21 +21,21 @@ typedef struct geometry_render_data {
     vec3 position;
 } geometry_render_data_t;
 
-typedef enum builtin_renderpass {
-    BUILTIN_RENDERPASS_WORLD = 0x01,
-    BUILTIN_RENDERPASS_UI = 0x02
-} builtin_renderpass;
+typedef struct renderpass_geometry {
+    u32 geometry_count;
+    geometry_render_data_t* geometry;
+} renderpass_geometry_t;
 
 typedef struct render_packet {
     f32 delta_time;
 
     mat4 view_matrix;
     mat4 projection_matrix;
-    u32 geometry_count;
-    geometry_render_data_t* geometries;
 
-    u32 ui_geometry_count;
-    geometry_render_data_t* ui_geometries;
+    /**
+     * @brief Indexed via builtin_renderpass enum
+     */
+    renderpass_geometry_t renderpass_geometry[BUILTIN_RENDERPASS_MAX];
 } render_packet_t;
 
 typedef struct renderer_backend {

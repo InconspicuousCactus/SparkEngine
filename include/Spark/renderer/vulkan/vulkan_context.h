@@ -2,6 +2,7 @@
 
 #include "Spark/math/mat4.h"
 #include "Spark/math/math_types.h"
+#include "Spark/renderer/renderer_types.h"
 #include "Spark/renderer/vulkan/vulkan_buffer.h"
 #include "Spark/renderer/vulkan/vulkan_command_buffer.h"
 #include "Spark/renderer/vulkan/vulkan_material.h"
@@ -69,8 +70,7 @@ typedef struct vulkan_context {
     VkSemaphore render_complete_semaphores[SWAPCHAIN_MAX_IMAGE_COUNT];
     VkFence in_flight_fences[SWAPCHAIN_MAX_IMAGE_COUNT];
 
-    vulkan_renderpass_t main_renderpass;
-    vulkan_renderpass_t ui_renderpass;
+    vulkan_renderpass_t renderpasses[BUILTIN_RENDERPASS_MAX];
 
     // Descriptor pools
     VkDescriptorPool descriptor_pool;

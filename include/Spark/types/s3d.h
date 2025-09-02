@@ -16,6 +16,7 @@ typedef enum vertex_attributes : u16 {
     VERTEX_ATTRIBUTE_UV1         = 0x100,
     VERTEX_ATTRIBUTE_UV2         = 0x200,
     VERTEX_ATTRIBUTE_UV3         = 0x400,
+    VERTEX_ATTRIBUTE_INT         = 0x800,
 } vertex_attributes_t;
 
 typedef enum s3d_texture_type : u8 {
