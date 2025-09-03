@@ -1,8 +1,11 @@
+#include "shader_compiler.h"
+#include "s3d.h"
+
 #include "Spark/defines.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "s3d.h"
 
 const char* extension_blacklist[] = {
     ".psd",
@@ -12,13 +15,16 @@ const char* extension_blacklist[] = {
 };
 const u32 extension_blacklist_count = sizeof(extension_blacklist) / sizeof(const char*);
 
-b8 compile_shader(const char* file, const char* output, const char* stage) {
-    char compile_command[1024];
-    snprintf(compile_command, 1024, "glslc -fshader-stage=%s '%s' -o '%s'", stage, file, output);
-    return system(compile_command) == 0;
-}
+
 
 int main(int argc, char** argv) {
+    enum args {
+        arg_executable_path, 
+        arg_file_path,
+        arg_out_dir,
+        arg_file_name,
+        arg_file_extension,
+    };
     // Arg 0: in file
     // Arg 1: base path
     // Arg 2: out dir
@@ -32,10 +38,10 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    const char* base_file      = argv[1];
-    const char* out_dir        = argv[2];
-    const char* file_name      = argv[3];
-    const char* file_extension = argv[4];
+    const char* base_file      = argv[arg_file_path];
+    const char* out_dir        = argv[arg_out_dir];
+    const char* file_name      = argv[arg_file_name];
+    const char* file_extension = argv[arg_file_extension];
     char output_path[1024] = {};
 
     // Dont copy blacklisted files
@@ -55,14 +61,19 @@ int main(int argc, char** argv) {
         if (s3d_convert(base_file, output_path) == -1) {
             return -1;
         }
+    } else if (strcmp(file_extension, ".glsl") == 0) {
+        strcat(output_path, ".frag.spv");
+        if (!compile_shader(base_file, file_name, output_path, "frag")) {
+            return -1;
+        }
     } else if (strcmp(file_extension, ".frag.glsl") == 0) {
         strcat(output_path, ".frag.spv");
-        if (!compile_shader(base_file, output_path, "frag")) {
+        if (!compile_shader(base_file, file_name, output_path, "frag")) {
             return -1;
         }
     } else if (strcmp(file_extension, ".vert.glsl") == 0) {
         strcat(output_path, ".vert.spv");
-        if (!compile_shader(base_file, output_path, "vert")) {
+        if (!compile_shader(base_file, file_name, output_path, "vert")) {
             return -1;
         }
     } else if (strcmp(file_extension, ".trs") == 0) {

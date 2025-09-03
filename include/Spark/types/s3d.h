@@ -3,20 +3,16 @@
 #include "Spark/math/math_types.h"
 #include "Spark/types/aabb.h"
 
-typedef enum vertex_attributes : u16 {
+typedef enum vertex_attributes : u8 {
     VERTEX_ATTRIBUTE_NONE,
-    VERTEX_ATTRIBUTE_POSITION_3D = 0x1,
-    VERTEX_ATTRIBUTE_POSITION_2D = 0x2,
-    VERTEX_ATTRIBUTE_NORMAL      = 0x4,
-    VERTEX_ATTRIBUTE_COLOR0      = 0x8,
-    VERTEX_ATTRIBUTE_COLOR1      = 0x10,
-    VERTEX_ATTRIBUTE_COLOR2      = 0x20,
-    VERTEX_ATTRIBUTE_COLOR3      = 0x40,
-    VERTEX_ATTRIBUTE_UV0         = 0x80,
-    VERTEX_ATTRIBUTE_UV1         = 0x100,
-    VERTEX_ATTRIBUTE_UV2         = 0x200,
-    VERTEX_ATTRIBUTE_UV3         = 0x400,
-    VERTEX_ATTRIBUTE_INT         = 0x800,
+    VERTEX_ATTRIBUTE_FLOAT,
+    VERTEX_ATTRIBUTE_VEC2,
+    VERTEX_ATTRIBUTE_VEC3,
+    VERTEX_ATTRIBUTE_VEC4,
+    VERTEX_ATTRIBUTE_INT,
+    VERTEX_ATTRIBUTE_IVEC2,
+    VERTEX_ATTRIBUTE_IVEC3,
+    VERTEX_ATTRIBUTE_IVEC4,
 } vertex_attributes_t;
 
 typedef enum s3d_texture_type : u8 {
@@ -49,7 +45,6 @@ typedef struct s3d_mesh {
     u32 index_count;
 
     u8 material_index;
-    vertex_attributes_t attributes;
 } s3d_mesh_t;
 
 typedef struct s3d_object {

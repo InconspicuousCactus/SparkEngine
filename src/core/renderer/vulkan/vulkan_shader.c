@@ -106,53 +106,37 @@ void vulkan_shader_create(struct vulkan_context* context,
             format = VK_FORMAT_R32_SFLOAT;
             stride = 0;
             break;
-        case VERTEX_ATTRIBUTE_POSITION_3D:
+        case VERTEX_ATTRIBUTE_FLOAT:
+            format = VK_FORMAT_R32_SFLOAT;
+            stride = sizeof(float);
+            break;
+        case VERTEX_ATTRIBUTE_VEC2:
+            format = VK_FORMAT_R32G32_SFLOAT;
+            stride = sizeof(vec2);
+            break;
+        case VERTEX_ATTRIBUTE_VEC3:
             format = VK_FORMAT_R32G32B32_SFLOAT;
             stride = sizeof(vec3);
             break;
-        case VERTEX_ATTRIBUTE_POSITION_2D:
-            format = VK_FORMAT_R32G32_SFLOAT;
-            stride = sizeof(vec2);
-            break;
-        case VERTEX_ATTRIBUTE_NORMAL:
-            format = VK_FORMAT_R32G32B32_SFLOAT;
-            stride = sizeof(vec3);
-            break;
-        case VERTEX_ATTRIBUTE_COLOR0:
+        case VERTEX_ATTRIBUTE_VEC4:
             format = VK_FORMAT_R32G32B32A32_SFLOAT;
             stride = sizeof(vec4);
-            break;
-        case VERTEX_ATTRIBUTE_COLOR1:
-            format = VK_FORMAT_R32G32B32A32_SFLOAT;
-            stride = sizeof(vec4);
-            break;
-        case VERTEX_ATTRIBUTE_COLOR2:
-            format = VK_FORMAT_R32G32B32A32_SFLOAT;
-            stride = sizeof(vec4);
-            break;
-        case VERTEX_ATTRIBUTE_COLOR3:
-            format = VK_FORMAT_R32G32B32A32_SFLOAT;
-            stride = sizeof(vec4);
-            break;
-        case VERTEX_ATTRIBUTE_UV0:
-            format = VK_FORMAT_R32G32_SFLOAT;
-            stride = sizeof(vec2);
-            break;
-        case VERTEX_ATTRIBUTE_UV1:
-            format = VK_FORMAT_R32G32_SFLOAT;
-            stride = sizeof(vec2);
-            break;
-        case VERTEX_ATTRIBUTE_UV2:
-            format = VK_FORMAT_R32G32_SFLOAT;
-            stride = sizeof(vec2);
-            break;
-        case VERTEX_ATTRIBUTE_UV3:
-            format = VK_FORMAT_R32G32_SFLOAT;
-            stride = sizeof(vec2);
             break;
         case VERTEX_ATTRIBUTE_INT:
             format = VK_FORMAT_R32_SINT;
-            stride = sizeof(s32);
+            stride = sizeof(int);
+            break;
+        case VERTEX_ATTRIBUTE_IVEC2:
+            format = VK_FORMAT_R32G32_SINT;
+            stride = sizeof(vec2i);
+            break;
+        case VERTEX_ATTRIBUTE_IVEC3:
+            format = VK_FORMAT_R32G32B32_SINT;
+            stride = sizeof(vec3i);
+            break;
+        case VERTEX_ATTRIBUTE_IVEC4:
+            format = VK_FORMAT_R32G32B32A32_SINT;
+            stride = sizeof(vec4i);
             break;
         }
         SASSERT(format != VK_FORMAT_UNDEFINED, "Vulkan shadder failed to select format for attribute 0x%x", vertex_attributes[i]);
@@ -375,9 +359,6 @@ void create_shader_descriptors(vulkan_context_t* context, u32 set, u32 resource_
         bindings[binding_count].descriptorCount = 1;
 
         switch (resources[i].stage) {
-            case SHADER_STAGE_NONE:
-                SERROR("Cannot add shader stage 'NONE'");
-                break;
             case SHADER_STAGE_VERTEX:
                 bindings[binding_count].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
                 break;

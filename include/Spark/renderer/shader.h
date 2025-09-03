@@ -16,6 +16,7 @@ typedef enum shader_stage_flags : u8 {
 
 // NOTE: if extra stages are added, ensure that SHADER_RESOURCE_ENUM_MAX fits within shader_resource_layout_t's type bitfield
 typedef enum shader_resource_type : u8 {
+    SHADER_RESOURCE_UNDEFINED,
     SHADER_RESOURCE_SOTRAGE_BUFFER,
     SHADER_RESOURCE_UNIFORM_BUFFER,
     SHADER_RESOURCE_SAMPLER,
@@ -49,9 +50,13 @@ typedef struct shader {
 
 darray_header(shader_t, shader);
 
-#define SHADER_CONFIG_MAX_NAME_LENGTH 48
+#define SHADER_CONFIG_MAX_NAME_LENGTH 16
 typedef struct shader_config {
     char name[SHADER_CONFIG_MAX_NAME_LENGTH];
+    const void* vertex_spv;
+    const void* fragment_spv;
+    u32 vertex_spv_size;
+    u32 fragment_spv_size;
     shader_resource_layout_t layout[SHADER_MAX_RESOURCES];
     vertex_attributes_t attributes[SHADER_MAX_ATTRIBUTES];
     u8 resource_count;
@@ -59,3 +64,7 @@ typedef struct shader_config {
     shader_stage_flags_t stages;
     builtin_renderpass_t type;
 } shader_config_t;
+
+typedef struct binary_shader_resource {
+    shader_config_t config;
+} binary_shader_resource_t;

@@ -464,13 +464,11 @@ shader_t vulkan_create_shader(shader_config_t* config) {
     vulkan_shader_t shader = {};
 
     char module_path[128];
-    if (config->stages & SHADER_STAGE_VERTEX) {
-        string_format(module_path, "assets/shaders/%s.vert.spv", config->name);
-        vulkan_shader_module_create_from_file(context, module_path, &shader.vert);
+    if (config->vertex_spv) {
+        vulkan_shader_module_create(context, (u32*)config->vertex_spv, config->vertex_spv_size, &shader.vert);
     }
-    if (config->stages & SHADER_STAGE_FRAGMENT) {
-        string_format(module_path, "assets/shaders/%s.frag.spv", config->name);
-        vulkan_shader_module_create_from_file(context, module_path, &shader.frag);
+    if (config->fragment_spv) {
+        vulkan_shader_module_create(context, (u32*)config->fragment_spv, config->fragment_spv_size, &shader.frag);
     }
 
     SASSERT(config->type >= 0 && config->type < BUILTIN_RENDERPASS_MAX, "Cannot create shader for invalid renderpass: %d", config->type);

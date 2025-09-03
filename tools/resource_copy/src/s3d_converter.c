@@ -23,7 +23,7 @@ void get_scene_index_vertex_size(const struct aiScene* scene, u32* out_vertex_si
 vertex_attributes_t get_vertex_attributes_and_stride(const struct aiMesh* mesh, u16* out_stride);
 s3d_mesh_t write_s3d_mesh(
         const struct aiMesh* mesh,
-        void* vertex_buffer,
+        vertex_3d_t* vertex_buffer,
         u64* vertex_offset,
         void* index_buffer,
         u64* index_offset);
@@ -227,58 +227,9 @@ void get_scene_index_vertex_size(const struct aiScene* scene, u32* out_vertex_si
     }
 }
 
-vertex_attributes_t get_vertex_attributes_and_stride(const struct aiMesh* mesh, u16* out_stride) {
-    vertex_attributes_t attributes = VERTEX_ATTRIBUTE_NONE;
-
-    if (mesh->mVertices) {
-        attributes |= VERTEX_ATTRIBUTE_POSITION_3D;
-        *out_stride += sizeof(vec3);
-    }
-    if (mesh->mNormals) {
-        attributes |= VERTEX_ATTRIBUTE_NORMAL;
-        *out_stride += sizeof(vec3);
-    }
-    if (mesh->mColors[0]) {
-        attributes |= VERTEX_ATTRIBUTE_COLOR0;
-        *out_stride += sizeof(vec4);
-    }
-    // if (mesh->mColors[1]) {
-    //     attributes |= VERTEX_ATTRIBUTE_COLOR1;
-    //     *out_stride += sizeof(vec4);
-    // }
-    // if (mesh->mColors[2]) {
-    //     attributes |= VERTEX_ATTRIBUTE_COLOR2;
-    //     *out_stride += sizeof(vec4);
-    // }
-    // if (mesh->mColors[3]) {
-    //     attributes |= VERTEX_ATTRIBUTE_COLOR3;
-    //     *out_stride += sizeof(vec4);
-    // }
-    if (mesh->mTextureCoords[0]) {
-        attributes |= VERTEX_ATTRIBUTE_UV0;
-        *out_stride += sizeof(vec2);
-    }
-    if (mesh->mTextureCoords[1]) {
-        attributes |= VERTEX_ATTRIBUTE_UV1;
-        *out_stride += sizeof(vec2);
-    }
-    if (mesh->mTextureCoords[2]) {
-        attributes |= VERTEX_ATTRIBUTE_UV2;
-        *out_stride += sizeof(vec2);
-    }
-    if (mesh->mTextureCoords[3]) {
-        attributes |= VERTEX_ATTRIBUTE_UV3;
-        *out_stride += sizeof(vec2);
-    }
-
-    printf("Mesh uses attributes 0x%x\n", attributes);
-
-    return attributes;
-}
-
 s3d_mesh_t write_s3d_mesh(
         const struct aiMesh* mesh,
-        void* vertex_buffer,
+        vertex_3d_t* vertex_buffer,
         u64* vertex_offset,
         void* index_buffer,
         u64* index_offset) {
@@ -303,59 +254,14 @@ s3d_mesh_t write_s3d_mesh(
 
     // Get vertex attributes and stride
     u16 vertex_stride = 0;
-    vertex_attributes_t attributes = get_vertex_attributes_and_stride(mesh, &vertex_stride);
-
-    // Copy all vertex information to vertex buffer
     for (int i = 0; i < mesh->mNumVertices; i++) {
-        if (attributes & VERTEX_ATTRIBUTE_POSITION_3D) {
-            memcpy(vertex_buffer + *vertex_offset, &mesh->mVertices[i], sizeof(vec3));
-            *vertex_offset += sizeof(vec3);
-        }
-        if (attributes & VERTEX_ATTRIBUTE_NORMAL) {
-            memcpy(vertex_buffer + *vertex_offset, &mesh->mNormals[i], sizeof(vec3));
-            *vertex_offset += sizeof(vec3);
-        }
-        if (attributes & VERTEX_ATTRIBUTE_COLOR0) {
-            struct aiColor4D color = mesh->mColors[0][i];
-            memcpy(vertex_buffer + *vertex_offset, &color, sizeof(struct aiColor4D));
-            *vertex_offset += sizeof(struct aiColor4D);
-        }
-        // if (attributes & VERTEX_ATTRIBUTE_COLOR1) {
-        //     memcpy(vertex_buffer + *vertex_offset, &mesh->mColors[1][i], sizeof(struct aiColor4D));
-        //     *vertex_offset += sizeof(struct aiColor4D);
-        // }
-        // if (attributes & VERTEX_ATTRIBUTE_COLOR2) {
-        //     memcpy(vertex_buffer + *vertex_offset, &mesh->mColors[2][i], sizeof(struct aiColor4D));
-        //     *vertex_offset += sizeof(struct aiColor4D);
-        // }
-        // if (attributes & VERTEX_ATTRIBUTE_COLOR3) {
-        //     memcpy(vertex_buffer + *vertex_offset, &mesh->mColors[3][i], sizeof(struct aiColor4D));
-        //     *vertex_offset += sizeof(struct aiColor4D);
-        // }
-        if (attributes & VERTEX_ATTRIBUTE_UV0) {
-            memcpy(vertex_buffer + *vertex_offset, &mesh->mTextureCoords[0][i], sizeof(vec2));
-            *vertex_offset += sizeof(vec2);
-        }
-        if (attributes & VERTEX_ATTRIBUTE_UV1) {
-            memcpy(vertex_buffer + *vertex_offset, &mesh->mTextureCoords[1][i], sizeof(vec2));
-            *vertex_offset += sizeof(vec2);
-        }
-        if (attributes & VERTEX_ATTRIBUTE_UV2) {
-            memcpy(vertex_buffer + *vertex_offset, &mesh->mTextureCoords[2][i], sizeof(vec2));
-            *vertex_offset += sizeof(vec2);
-        }
-        if (attributes & VERTEX_ATTRIBUTE_UV3) {
-            memcpy(vertex_buffer + *vertex_offset, &mesh->mTextureCoords[3][i], sizeof(vec2));
-            *vertex_offset += sizeof(vec2);
-        }
+        vertex_buffer[i].position = *(vec3*)&mesh->mVertices[i];
+        vertex_buffer[i].normal = *(vec3*)&mesh->mNormals[i];
+        vertex_buffer[i].uv = *(vec2*)&mesh->mTextureCoords[0][i];
     }
 
     // Copy indices
     b8 is_short_index = false;
-    // b8 is_short_index = true;
-    // if (mesh->mNumFaces * 3 > 0xFFFF) {
-    //     is_short_index = false;
-    // }
 
     for (int i = 0; i < mesh->mNumFaces; i++) {
         for (int f = 0; f < mesh->mFaces[i].mNumIndices; f++) {
@@ -380,7 +286,6 @@ s3d_mesh_t write_s3d_mesh(
     // }
 
     // Finish writing out_mesh
-    out_mesh.attributes = attributes;
     out_mesh.vertex_stride = vertex_stride;
     out_mesh.index_stride = is_short_index ? sizeof(u16) : sizeof(u32);
     return out_mesh;

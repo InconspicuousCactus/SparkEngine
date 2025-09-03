@@ -1,6 +1,7 @@
 #include "Spark/resources/loaders/shader_loader.h"
 #include "Spark/core/sstring.h"
 #include "Spark/memory/linear_allocator.h"
+#include "Spark/platform/filesystem.h"
 #include "Spark/renderer/renderer_frontend.h"
 #include "Spark/renderer/renderpasses.h"
 #include "Spark/renderer/shader.h"
@@ -71,32 +72,24 @@ resource_t pvt_shader_loader_load_text_resource(const char* text, u32 length, b8
             config.attribute_count = 0;
             for (u32 i = 1; i < arg_count; i++) {
                 const char* attribute = arg_buffer[i];
-                if (string_equal(attribute, "position_3d")) {
-                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_POSITION_3D;
-                } else if (string_equal(attribute, "position_2d")) {
-                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_POSITION_2D;
-                } else if (string_equal(attribute, "normal")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_NORMAL;
-                } else if (string_equal(attribute, "uv0")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_UV0;
-                } else if (string_equal(attribute, "uv1")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_UV1;
-                } else if (string_equal(attribute, "uv2")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_UV2;
-                } else if (string_equal(attribute, "uv3")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_UV3;
-                } else if (string_equal(attribute, "color0")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_COLOR0;
-                } else if (string_equal(attribute, "color1")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_COLOR1;
-                } else if (string_equal(attribute, "color2")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_COLOR2;
-                } else if (string_equal(attribute, "color3")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_COLOR3;
+                if (string_equal(attribute, "float")) {
+                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_FLOAT;
+                } else if (string_equal(attribute, "vec2")) {
+                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_VEC2;
+                } else if (string_equal(attribute, "vec3")) {
+                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_VEC3;
+                } else if (string_equal(attribute, "vec4")) {
+                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_VEC4;
                 } else if (string_equal(attribute, "int")) {
-                    config.attributes[config.attribute_count++] |= VERTEX_ATTRIBUTE_INT;
+                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_INT;
+                } else if (string_equal(attribute, "vec2i")) {
+                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_IVEC2;
+                } else if (string_equal(attribute, "vec3i")) {
+                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_IVEC3;
+                } else if (string_equal(attribute, "vec4i")) {
+                    config.attributes[config.attribute_count++] = VERTEX_ATTRIBUTE_IVEC4;
                 } else {
-                    SWARN("Shader '%s' has unknown attribute '%s'", attribute);
+                    SWARN("Shader has unknown attribute '%s'", attribute);
                 }
             }
         } else if (string_equal(arg_buffer[0], "resource")) {
@@ -155,8 +148,13 @@ resource_t pvt_shader_loader_load_text_resource(const char* text, u32 length, b8
 }
 
 resource_t pvt_shader_loader_load_binary_resource(void* binary_data, u32 size, b8 auto_delete) {
-    SCRITICAL("Cannot load binary shader resource: Not implemented.");
-    shader_t shader = {};
+    binary_shader_resource_t* resource = binary_data;
+
+    shader_config_t config = resource->config;
+    config.vertex_spv += (size_t)binary_data;
+    config.fragment_spv += (size_t)binary_data;
+
+    shader_t shader = renderer_create_shader(&config);
     return create_resource_from_shader(shader, auto_delete);
 }
 
