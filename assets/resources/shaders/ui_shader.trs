@@ -1,8 +1,0 @@
-#resource shader
-name:ui
-type:ui
-stage:frag,vert
-vertex_attributes:position_2d,uv0
-resource:uniform_buffer,vert,0,0
-resource:buffer,vert,1,0
-resource:sampler,frag,0,1

@@ -1,4 +1,4 @@
 #resource material
 name:ui_material
-shader_path:assets/resources/shaders/ui_shader.trs
-texture:assets/resources/textures/ui_text_texture.trs,0,1
+shader_path:assets/shaders/ui
+texture:assets/resources/textures/ui_text_texture,0,1

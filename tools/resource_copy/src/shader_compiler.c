@@ -2,6 +2,7 @@
 #include "Spark/core/logging.h"
 #include "Spark/renderer/renderpasses.h"
 #include "Spark/renderer/shader.h"
+#include "Spark/resources/resource_types.h"
 #include "Spark/types/s3d.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -120,12 +121,21 @@ u32 parse_struct(FILE* output, const char** tokens, u32 token_offset, u32 token_
 
     while (!string_contains(tokens[token_offset + read_token_count], '}')) {
         char write_buffer[1024] = {};
-        snprintf(write_buffer, sizeof(write_buffer), "layout(location = %d) %s %s %s%s;\n", 
+        const char* qualifier = NULL;
+        const char* type = tokens[token_offset + read_token_count];
+        if (string_equal(type, "flat")) {
+            qualifier = type;
+            type = tokens[token_offset + read_token_count + 1];
+            read_token_count++;
+        }
+        const char* name = tokens[token_offset + read_token_count + 1];
+        snprintf(write_buffer, sizeof(write_buffer), "layout(location = %d) %s %s %s %s%s;\n", 
                 location_index++, 
                 input ? "in" : "out", 
-                tokens[token_offset + read_token_count], 
+                qualifier ? qualifier : "",
+                type, 
                 input ? "input_" : "output_",
-                tokens[token_offset + read_token_count + 1]);
+                name);
 
         if (output) {
             write_string_literal(output, write_buffer);
@@ -170,7 +180,7 @@ b8 compile_stage(const char* file, const char** tokens, const u32 token_count, s
 
     // Create new file
 #define temp_file_name_size 512
-    char temp_file_name[temp_file_name_size];
+    char temp_file_name[temp_file_name_size] = {};
     strncat(temp_file_name, ".", temp_file_name_size - 1);
     strncpy(temp_file_name, file, temp_file_name_size - 1);
     strncat(temp_file_name, ".", temp_file_name_size - 1);
@@ -180,9 +190,6 @@ b8 compile_stage(const char* file, const char** tokens, const u32 token_count, s
     FILE* out_file = fopen(temp_file_name, "w");
 
     // Parse old file and inject new data
-    const char* vertex_input = NULL;
-    const char* vertex_output = NULL;
-
     for (u32 i = 0; i < token_count; i++) {
         const char* token = tokens[i];
         if (string_equal_literal(token, "#renderpass")) {
@@ -240,25 +247,23 @@ b8 compile_stage(const char* file, const char** tokens, const u32 token_count, s
             i++;
         } else {
             fwrite(token, strlen(token), 1, out_file);
-            b8 add_space = *token != '.';
+            b8 add_space = true;
             const char no_space_chars[] = {
                 '.', 
                 '(',
-                '0',
-                '1',
-                '2',
-                '3',
-                '4',
-                '5',
-                '6',
-                '7',
-                '8',
-                '9',
+                ')',
+                ';'
             };
 
             if (i < token_count - 1) {
                 for (u32 j = 0; j < sizeof(no_space_chars) / sizeof(char); j++) {
                     add_space &= *tokens[i + 1] != no_space_chars[j];
+                }
+            }
+            if (i > 0) {
+                for (u32 j = 0; j < sizeof(no_space_chars) / sizeof(char); j++) {
+                    const char* token = tokens[i];
+                    add_space &= *token != no_space_chars[j];
                 }
             }
             if (add_space) {
@@ -359,21 +364,24 @@ b8 create_shader_config(const char* file_name, const char** tokens, u32 token_co
         // Search for renderpass
         if (string_equal_literal(tokens[i], "#renderpass")) {
             const char* renderpass = tokens[i] + sizeof("#renderpass");
-            if (string_equal(renderpass, "world")) {
+            if (string_equal_literal(renderpass, "world")) {
                 out_config->type = BUILTIN_RENDERPASS_WORLD;
-            } else if (string_equal(renderpass, "ui")) {
+            } else if (string_equal_literal(renderpass, "ui")) {
                 out_config->type = BUILTIN_RENDERPASS_UI;
-            } else if (string_equal(renderpass, "skybox")) {
+            } else if (string_equal_literal(renderpass, "skybox")) {
                 out_config->type = BUILTIN_RENDERPASS_SKYBOX;
             } else {
                 printf("Undefined renderpass '%s'\n", renderpass);
                 return false;
             }
-            i++;
         }
     }
 
-    // builtin_renderpass_t type;
+    // Verify
+    if (out_config->attribute_count <= 0) {
+        printf("Failed to create config for shader '%s': No attributes found.\n", file_name);
+        return false;
+    }
 
     return true;;
 }
@@ -396,7 +404,7 @@ b8 append_file_contents(FILE* file, const char* file_path, u32* out_length) {
     return true;
 }
 
-b8 compile_shader(const char* file_path, const char* file_name, const char* output, const char* stage) {
+b8 compile_shader(const char* file_path, const char* file_name, const char* output_path) {
     // Read source text 
     FILE* file = fopen(file_path, "r");
 
@@ -421,25 +429,29 @@ b8 compile_shader(const char* file_path, const char* file_name, const char* outp
     // Compile shader stages
     char* vertex_filename = NULL;
     if (!compile_stage(file_name, tokens, token_count, SHADER_STAGE_VERTEX, &vertex_filename)) {
-        remove(vertex_filename);
+        // remove(vertex_filename);
         printf("Failed to compile vertex stage in shader %s.\n", file_path);
         return false;
     }
 
     char* fragment_filename = NULL;
     if (!compile_stage(file_name, tokens, token_count, SHADER_STAGE_FRAGMENT, &fragment_filename)) {
-        remove(vertex_filename);
-        remove(fragment_filename);
+        // remove(vertex_filename);
+        // remove(fragment_filename);
         printf("Failed to compile fragment stage in shader %s.\n", file_path);
         return false;
     }
 
     // Create shader resource
     binary_shader_resource_t res = {
+        .header = {
+            .magic = BINARY_RESOURCE_FILE_MAGIC,
+            .type = RESOURCE_TYPE_SHADER,
+        },
         .config = config,
     };
 
-    FILE* out_file = fopen("test.bshd", "w");
+    FILE* out_file = fopen(output_path, "w");
     fwrite(&res, sizeof(binary_shader_resource_t), 1, out_file);
 
     // Append spv file contents

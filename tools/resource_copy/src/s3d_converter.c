@@ -253,11 +253,21 @@ s3d_mesh_t write_s3d_mesh(
         };
 
     // Get vertex attributes and stride
-    u16 vertex_stride = 0;
-    for (int i = 0; i < mesh->mNumVertices; i++) {
-        vertex_buffer[i].position = *(vec3*)&mesh->mVertices[i];
-        vertex_buffer[i].normal = *(vec3*)&mesh->mNormals[i];
-        vertex_buffer[i].uv = *(vec2*)&mesh->mTextureCoords[0][i];
+    u16 vertex_stride = sizeof(vec3) * 2 + sizeof(vec2);
+    if (mesh->mVertices) {
+        for (int i = 0; i < mesh->mNumVertices; i++) {
+            vertex_buffer[i].position = *(vec3*)&mesh->mVertices[i];
+        }
+    }
+    if (mesh->mNormals) {
+        for (int i = 0; i < mesh->mNumVertices; i++) {
+            vertex_buffer[i].normal = *(vec3*)&mesh->mNormals[i];
+        }
+    }
+    if (mesh->mTextureCoords[0]) {
+        for (int i = 0; i < mesh->mNumVertices; i++) {
+            vertex_buffer[i].uv = *(vec2*)&mesh->mTextureCoords[0][i];
+        }
     }
 
     // Copy indices

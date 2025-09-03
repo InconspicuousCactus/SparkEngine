@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Spark/memory/linear_allocator.h"
+#include "Spark/renderer/shader.h"
 #include "Spark/resources/resource_types.h"
 
 void shader_loader_initialzie(linear_allocator_t* allocator);

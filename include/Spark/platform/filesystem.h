@@ -45,7 +45,7 @@ SAPI void filesystem_close(file_handle_t* handle);
  * @param out_size A pointer to hold the file size.
  * @return KAPI 
  */
-SAPI b8 filesystem_size(file_handle_t* handle, u64* out_size);
+SAPI b8 filesystem_get_file_size(file_handle_t* handle, u64* out_size);
 
 /** 
  * Reads up to a newline or EOF.

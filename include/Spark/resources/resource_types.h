@@ -1,9 +1,7 @@
 #pragma once
 
-#include "Spark/renderer/material.h"
-#include "Spark/renderer/shader.h"
 #include "Spark/renderer/texture.h"
-#include "Spark/types/s3d.h"
+
 typedef enum resource_type : u8 {
     RESOURCE_TYPE_NULL,
     RESOURCE_TYPE_TEXT,
@@ -15,6 +13,12 @@ typedef enum resource_type : u8 {
     RESOURCE_TYPE_ENUM_MAX,
 } resource_type_t;
 
+const static u32 BINARY_RESOURCE_FILE_MAGIC = 0x99 | ('b' << 8) | ('r' << 16) | ('s' << 24);
+typedef struct binary_resource_header {
+    u32 magic;
+    resource_type_t type;
+} binary_resource_header_t;
+
 typedef struct resource {
     resource_type_t type;
     b8 auto_delete;
@@ -24,16 +28,10 @@ typedef struct resource {
 } resource_t;
 darray_header(resource_t, resource);
 
-texture_t*  resource_get_texture(resource_t* resource);
-shader_t*   resource_get_shader(resource_t* resource);
-material_t* resource_get_material(resource_t* resource);
-entity_t resource_instance_model(resource_t* resource, u32 material_count, material_t** materials);
-
 typedef struct mesh_resource {
     u32 mesh_index;
 } mesh_resource_t;
 
-const static u16 BINARY_RESOURCE_FILE_MAGIC = ('B' << 8 | 'R');
 // Configurations
 
 #define TEXTURE_CONFIG_PATH_MAX_SIZE 128

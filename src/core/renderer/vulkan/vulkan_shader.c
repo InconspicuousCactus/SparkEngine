@@ -22,7 +22,7 @@ void vulkan_shader_module_create_from_file(struct vulkan_context* context, const
     filesystem_open(path, FILE_MODE_READ, true, &handle);
 
     u64 size;
-    filesystem_size(&handle, &size);
+    filesystem_get_file_size(&handle, &size);
 
     if (size > context->text_buffer_size) {
         if (context->shader_text_buffer) {
@@ -71,6 +71,7 @@ void vulkan_shader_create(struct vulkan_context* context,
 
     // Get all stages,
     SASSERT(out_shader->vert != VK_NULL_HANDLE, "Vulkan Shader does not have vertex module.");
+    SASSERT(out_shader->frag != VK_NULL_HANDLE, "Vulkan Shader does not have fragment module.");
 
     VkPipelineShaderStageCreateInfo stages[VULKAN_SHADER_MAX_STAGES];
     u32 stage_count = 1;
@@ -355,34 +356,28 @@ void create_shader_descriptors(vulkan_context_t* context, u32 set, u32 resource_
             continue;
         }
 
-        bindings[binding_count].binding         = binding_count;
-        bindings[binding_count].descriptorCount = 1;
+        VkDescriptorSetLayoutBinding* binding = &bindings[binding_count++];
+        binding->binding         = resources[i].binding;
+        binding->descriptorCount = 1;
 
-        switch (resources[i].stage) {
-            case SHADER_STAGE_VERTEX:
-                bindings[binding_count].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-                break;
-            case SHADER_STAGE_FRAGMENT:
-                bindings[binding_count].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-                break;
-            case SHADER_STAGE_ENUM_MAX:
-                break;
-        }
+        // TODO: Make this variable for bindings in different stages (i.e. tesselate / geometry / compute)
+        binding->stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
         switch (resources[i].type) {
             case SHADER_RESOURCE_SOTRAGE_BUFFER:
-                bindings[binding_count].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                binding->descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 break;
             case SHADER_RESOURCE_UNIFORM_BUFFER:
-                bindings[binding_count].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                binding->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 break;
             case SHADER_RESOURCE_SAMPLER:
-                bindings[binding_count].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                bindings[binding_count].pImmutableSamplers = NULL;
+                binding->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                binding->pImmutableSamplers = NULL;
+                break;
+            case SHADER_RESOURCE_UNDEFINED:
+                SERROR("Cannot create undefined shader resource.");
                 break;
         }
-
-        binding_count++;
     }
 
     if (binding_count == 0) {
@@ -422,7 +417,7 @@ void vulkan_shader_bind_resources(struct vulkan_context* context, vulkan_shader_
         u32 set = resources[i].layout.set;
 
         switch (resources[i].layout.type) {
-            case VULKAN_BUFFER_TYPE_STORAGE:
+            case SHADER_RESOURCE_SOTRAGE_BUFFER:
                 vulkan_buffer_create_descriptor_write(resources[i].data, 
                         resources[i].layout.binding, 
                         shader->descriptor_sets[set], 
@@ -430,7 +425,7 @@ void vulkan_shader_bind_resources(struct vulkan_context* context, vulkan_shader_
                         &buffer_info[i], 
                         &descriptor_writes[i]);
                 break;
-            case VULKAN_BUFFER_TYPE_UNIFORM:
+            case SHADER_RESOURCE_UNIFORM_BUFFER:
                 vulkan_buffer_create_descriptor_write(resources[i].data, 
                         resources[i].layout.binding, 
                         shader->descriptor_sets[set], 
@@ -453,7 +448,8 @@ void vulkan_shader_bind_resources(struct vulkan_context* context, vulkan_shader_
                         .pImageInfo      = &image_infos[i],
                         .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 };
-
+                break;
+            case SHADER_RESOURCE_UNDEFINED:
                 break;
         }
     }

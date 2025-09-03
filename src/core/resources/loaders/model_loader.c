@@ -84,7 +84,7 @@ resource_t create_model_from_config(model_config_t* config) {
 
     
     u64 file_size = 0;
-    filesystem_size(&file_handle, &file_size);
+    filesystem_get_file_size(&file_handle, &file_size);
     darray_u8_reserve(&state->file_buffer, file_size);
 
     u64 bytes_read = 0;

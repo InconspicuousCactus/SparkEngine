@@ -54,7 +54,7 @@ void filesystem_close(file_handle_t* handle) {
     }
 }
 
-b8 filesystem_size(file_handle_t* handle, u64* out_size) {
+b8 filesystem_get_file_size(file_handle_t* handle, u64* out_size) {
     if (handle->handle) {
         fseek((FILE*)handle->handle, 0, SEEK_END);
         *out_size = ftell((FILE*)handle->handle);
@@ -109,7 +109,7 @@ b8 filesystem_read_all_bytes(file_handle_t* handle, u8* out_bytes, u64* out_num_
     if (handle->handle && out_bytes && out_num_bytes_read) {
         // File size
         u64 size = 0;
-        if(!filesystem_size(handle, &size)) {
+        if(!filesystem_get_file_size(handle, &size)) {
             return false;
         }
 
@@ -123,7 +123,7 @@ b8 filesystem_read_all_text(file_handle_t* handle, char* out_text, u64* out_byte
     if (handle->handle && out_text && out_bytes_read) {
         // File size
         u64 size = 0;
-        if(!filesystem_size(handle, &size)) {
+        if(!filesystem_get_file_size(handle, &size)) {
                    return false;
         }
 

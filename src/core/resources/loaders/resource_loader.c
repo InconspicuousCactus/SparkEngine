@@ -34,7 +34,7 @@ static resource_loader_state_t* loader_state;
 // =================================
 // Private Function Definitions 
 // =================================
-void load_binary_resource(const char* data, u32 size, b8 auto_delete, resource_t* out_resource);
+resource_t load_binary_resource(const void* data, u32 size, b8 auto_delete, resource_t* out_resource);
 #define is_tres_type(text, type) (string_nequal(text + sizeof(TRES_TAG), type, sizeof(type) - 1))
 
 // =================================
@@ -76,16 +76,21 @@ resource_t resource_loader_get_resource(const char* path, b8 auto_delete) {
     SASSERT(opened_file, "Failed to open resource at path '%s'", path);
 
     u64 file_size = 0;
-    filesystem_size(&file_handle, &file_size);
+    filesystem_get_file_size(&file_handle, &file_size);
+    darray_u8_reserve(&loader_state->resource_buffer, file_size);
+    loader_state->resource_buffer.data[0] = 0;
 
     u64 bytes_read = 0;
     filesystem_read(&file_handle, file_size, loader_state->resource_buffer.data, &bytes_read);
+    SASSERT(bytes_read > 0, "Failed to sucessfully read data from resource %s", path);
+
     filesystem_close(&file_handle);
     loader_state->resource_buffer.data[bytes_read] = file_size;
 
     // Check if the resource is a binary or text resource
-    if (((u16*)loader_state->resource_buffer.data)[0] == BINARY_RESOURCE_FILE_MAGIC) {
-        load_binary_resource((const char*)loader_state->resource_buffer.data, file_size, auto_delete, &out_resource);
+    const binary_resource_header_t* binary_header = (binary_resource_header_t*)loader_state->resource_buffer.data;
+    if (binary_header->magic == BINARY_RESOURCE_FILE_MAGIC) {
+        out_resource = load_binary_resource(loader_state->resource_buffer.data, file_size, auto_delete, &out_resource);
     } else {
         if (!string_nequal((const char*)loader_state->resource_buffer.data, TRES_TAG, TRES_SIZE - 1)) {
             SERROR("Cannot load resource at path '%s': Text resource must have first line defining resource type. I.e. '#resource shader'", path);
@@ -93,7 +98,6 @@ resource_t resource_loader_get_resource(const char* path, b8 auto_delete) {
         }
 
         // Check for text resource
-        // TODO: Remove strncmp, Should be custom string library
         SASSERT(string_equal((const char*)loader_state->resource_buffer.data, "#resource shader") == 0, 
                 "Trying to load binary shader resource. Expected resource tag of '#resource shader', got '%.16s'",
                 (const char*)loader_state->resource_buffer.data);
@@ -111,11 +115,9 @@ resource_t resource_loader_get_resource(const char* path, b8 auto_delete) {
             SERROR("Failed to get text resource type");
             return (resource_t) { .type = RESOURCE_TYPE_NULL };
         }
-
-        resource_map_insert(&loader_state->resources, path, out_resource);
-
     }
 
+    resource_map_insert(&loader_state->resources, path, out_resource);
     return out_resource;
 }
 void resource_loader_destroy_resource(resource_t* resource) {
@@ -127,15 +129,13 @@ mesh_resource_t resource_loader_load_mesh(const char* path);
 // =================================
 // Private Function Implementations
 // =================================
-void load_binary_resource(const char* data, u32 size, b8 auto_delete, resource_t* out_resource) {
-    resource_type_t type = ((u16*)data)[1];
-    // resource_t resource;
-    switch (type) {
+resource_t load_binary_resource(const void* data, u32 size, b8 auto_delete, resource_t* out_resource) {
+    const binary_resource_header_t* binary_header = data;
+    switch (binary_header->type) {
         default: 
-            SERROR("Unable to load binary resource: Resource %d not implemented.", type);
-            break;
-        // case RESOURCE_TYPE_SHADER:
-            // resource = pvt_shader_loader_load_binary_resource((void*)data, size, auto_delete);
-            // return darray_resource_push(&loader_state->resources, resource);
+            SERROR("Unable to load binary resource: Resource %d not implemented.", binary_header->type);
+            return (resource_t) {};
+        case RESOURCE_TYPE_SHADER:
+            return pvt_shader_loader_load_binary_resource((void*)data, size, auto_delete);
     }
 }

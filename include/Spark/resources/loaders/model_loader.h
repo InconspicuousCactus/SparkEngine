@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Spark/memory/linear_allocator.h"
+#include "Spark/renderer/material.h"
 #include "Spark/renderer/model.h"
 #include "Spark/resources/resource_types.h"
 

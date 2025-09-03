@@ -1,4 +1,4 @@
 #resource material
 name:default
-shader_path:assets/resources/shaders/default.trs
-texture:assets/resources/textures/test_texture.trs,0,1
+shader_path:assets/shaders/default
+texture:assets/resources/textures/test_texture,0,1

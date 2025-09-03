@@ -62,23 +62,13 @@ int main(int argc, char** argv) {
             return -1;
         }
     } else if (strcmp(file_extension, ".glsl") == 0) {
-        strcat(output_path, ".frag.spv");
-        if (!compile_shader(base_file, file_name, output_path, "frag")) {
-            return -1;
-        }
-    } else if (strcmp(file_extension, ".frag.glsl") == 0) {
-        strcat(output_path, ".frag.spv");
-        if (!compile_shader(base_file, file_name, output_path, "frag")) {
-            return -1;
-        }
-    } else if (strcmp(file_extension, ".vert.glsl") == 0) {
-        strcat(output_path, ".vert.spv");
-        if (!compile_shader(base_file, file_name, output_path, "vert")) {
+        strcat(output_path, "");
+        if (!compile_shader(base_file, file_name, output_path)) {
             return -1;
         }
     } else if (strcmp(file_extension, ".trs") == 0) {
         // TODO: Convert text resources to binary resources
-        strcat(output_path, ".trs");
+        strcat(output_path, "");
         char command_buffer[2048];
         snprintf(command_buffer, sizeof(command_buffer), "cp '%s' '%s'", base_file, output_path);
         system(command_buffer);

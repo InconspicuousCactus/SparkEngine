@@ -31,6 +31,7 @@
 #include "Spark/resources/loaders/shader_loader.h"
 #include "Spark/resources/resource_loader.h"
 #include "Spark/resources/resource_types.h"
+#include "Spark/resources/resource_functions.h"
 #include <vulkan/vulkan_core.h>
 
 vulkan_context_t* context = NULL;
@@ -160,11 +161,11 @@ b8 vulkan_renderer_initialize(const char* application_name, struct platform_stat
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
             &context->default_texture);
 
-    resource_t default_shader_res = resource_loader_get_resource("assets/resources/shaders/default.trs", true);
+    resource_t default_shader_res = resource_loader_get_resource("assets/shaders/default", true);
     shader_t* shader = resource_get_shader(&default_shader_res);
     context->default_shader = context->shaders.data[shader->internal_index];
 
-    resource_t default_mat_res = resource_loader_get_resource("assets/resources/materials/default.trs", true);
+    resource_t default_mat_res = resource_loader_get_resource("assets/resources/materials/default", true);
     context->default_material = context->materials.data[resource_get_material(&default_mat_res)->internal_index];
 
     STRACE("Created vulkan renderer");
@@ -421,6 +422,9 @@ b8 vulkan_renderer_end_frame() {
 }
 
 mesh_t vulkan_create_mesh(void* vertices, u32 vertex_count, u32 vertex_stride, void* indices, u32 index_count, u32 index_stride) {
+    SASSERT(vertex_stride > 0, "Cannot add vertices with stride of 0.");
+    SASSERT(index_stride > 0,  "Cannot add indices with stride of 0.");
+
     // Pad the vertex buffer so that shaders can have unique vertex layouts
     u32 index_padding = index_stride - (context->index_buffer_offset % index_stride);
     if (index_padding != index_stride) {
@@ -463,7 +467,6 @@ shader_t vulkan_create_shader(shader_config_t* config) {
     // Shader
     vulkan_shader_t shader = {};
 
-    char module_path[128];
     if (config->vertex_spv) {
         vulkan_shader_module_create(context, (u32*)config->vertex_spv, config->vertex_spv_size, &shader.vert);
     }
@@ -481,7 +484,6 @@ shader_t vulkan_create_shader(shader_config_t* config) {
             .layout = {
                 .binding = 0,
                 .set = 0,
-                .stage = SHADER_STAGE_VERTEX,
                 .type = SHADER_RESOURCE_UNIFORM_BUFFER,
             },
             .data = &context->uniform_buffer_3d,
@@ -490,7 +492,6 @@ shader_t vulkan_create_shader(shader_config_t* config) {
             .layout = {
                 .binding = 1,
                 .set = 0,
-                .stage = SHADER_STAGE_VERTEX,
                 .type = SHADER_RESOURCE_SOTRAGE_BUFFER,
             },
             .data = &context->instance_buffer,
@@ -500,7 +501,6 @@ shader_t vulkan_create_shader(shader_config_t* config) {
         .layout = {
             .binding = 0,
             .set = 0,
-            .stage = SHADER_STAGE_VERTEX,
             .type = SHADER_RESOURCE_UNIFORM_BUFFER,
         },
         .data = &context->uniform_buffer_ui,
@@ -599,6 +599,9 @@ material_t vulkan_create_material(material_config_t* config) {
                 case SHADER_RESOURCE_SAMPLER:
                     sampler_count++;
                     break;
+                case SHADER_RESOURCE_UNDEFINED:
+                    SERROR("Cannot create undefined shader resource.");
+                    break;
             }
         }
 
@@ -664,10 +667,13 @@ material_t vulkan_create_material(material_config_t* config) {
         u32 set = config->resources[i].set;
 
         switch (config->resources[i].type) {
-            case VULKAN_BUFFER_TYPE_STORAGE:
+            case SHADER_RESOURCE_UNDEFINED:
+              SERROR("Cannot use undefined shader resource.");
+              break;
+            case SHADER_RESOURCE_SOTRAGE_BUFFER:
                 vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material.sets[set], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &buffer_info[i], &descriptor_writes[i]);
                 break;
-            case VULKAN_BUFFER_TYPE_UNIFORM:
+            case SHADER_RESOURCE_UNIFORM_BUFFER:
                 vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material.sets[set], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &buffer_info[i], &descriptor_writes[i]);
                 break;
             case SHADER_RESOURCE_SAMPLER:
@@ -686,9 +692,8 @@ material_t vulkan_create_material(material_config_t* config) {
                         .pImageInfo      = &image_infos[i],
                         .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                     };
-
-                break;
-        }
+              break;
+            }
     }
 
     vkUpdateDescriptorSets(context->logical_device, config->resource_count, descriptor_writes, 0, NULL);

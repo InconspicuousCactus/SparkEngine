@@ -7,6 +7,7 @@
 #include "Spark/resources/loaders/loader_utils.h"
 #include "Spark/resources/resource_loader.h"
 #include "Spark/resources/resource_types.h"
+#include "Spark/resources/resource_functions.h"
 
 // ==============================
 // Private Data
