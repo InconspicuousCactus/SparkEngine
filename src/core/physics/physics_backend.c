@@ -93,7 +93,6 @@ void physics_backend_initialize(linear_allocator_t* allocator) {
 void physics_backend_shutdown() {
     // Remove the destroy sphere from the physics system. Note that the sphere itself keeps all of its state and can be re-added at any time.
     // JPH_BodyInterface_RemoveAndDestroyBody(state->bodyInterface, sphereId);
-
     JPH_JobSystem_Destroy(state->job_system);
 
     JPH_PhysicsSystem_Destroy(state->system);
@@ -116,11 +115,9 @@ void entity_add_cube_collider(ecs_world_t* world, entity_t entity, vec3 extents,
     physics_body_t body = {
         .id = JPH_BodyInterface_CreateAndAddBody(state->body_interface, settings, JPH_Activation_Activate),
     };
+    SDEBUG("Creating cube body %d", body.id);
 
     JPH_BodyCreationSettings_Destroy(settings);
-    JPH_Vec3 sphereLinearVelocity = { 0.0f, -5.0f, 0.0f };
-    JPH_BodyInterface_SetLinearVelocity(state->body_interface, body.id, &sphereLinearVelocity);
-    SDEBUG("Created body %d", body.id);
 
     ENTITY_SET_COMPONENT(world, entity, physics_body_t, body);
     ENTITY_ADD_COMPONENT(world, entity, velocity_t);
@@ -132,7 +129,7 @@ void entity_add_cube_collider(ecs_world_t* world, entity_t entity, vec3 extents,
 
 // Private functionm implementations 
 void jph_trace(const char* message) {
-    SINFO("Jolt Physics: %s", message);
+    STRACE("Jolt Physics: %s", message);
 }
 
 void physics_step_system(ecs_iterator_t* iterator) {
@@ -200,5 +197,18 @@ JPH_MotionType convert_motion_type(physics_motion_t motion) {
             return JPH_MotionType_Kinematic;
         case PHYSICS_MOTION_DYNAMIC:
             return JPH_MotionType_Dynamic;
+    }
+}
+
+void physics_body_destroy(void* component) {
+    physics_body_t* body = component;
+    SDEBUG("Attempting to remove body %p / %d", body, body->id);
+    if (JPH_BodyInterface_IsActive(state->body_interface, body->id)) {
+        SDEBUG("Removing body %p / %d", body, body->id);
+        JPH_Shape* shape =(JPH_Shape*)JPH_BodyInterface_GetShape(state->body_interface, body->id); 
+        if (shape) {
+            JPH_Shape_Destroy(shape);
+        }
+        JPH_BodyInterface_RemoveAndDestroyBody(state->body_interface, body->id);
     }
 }

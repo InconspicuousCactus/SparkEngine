@@ -187,9 +187,11 @@ b8 vulkan_renderer_shutdown() {
         vulkan_material_destroy(context, &context->materials.data[i]);
     }
 
-    darray_vulkan_mesh_destroy(&context->meshes);
-    darray_vulkan_shader_destroy(&context->shaders);
+    darray_vulkan_mesh_destroy    (&context->meshes);
+    darray_vulkan_shader_destroy  (&context->shaders);
     darray_vulkan_material_destroy(&context->materials);
+    darray_vulkan_image_destroy   (&context->images);
+    darray_mat4_destroy           (&context->local_instance_buffer);
     sfree(context->shader_text_buffer, context->text_buffer_size, MEMORY_TAG_ARRAY);
 
     vulkan_image_destroy(context, &context->default_texture);
@@ -209,6 +211,8 @@ b8 vulkan_renderer_shutdown() {
         vulkan_semaphor_destroy(context, context->render_complete_semaphores[i]);
         vulkan_fence_destroy(context, context->in_flight_fences[i]);
         vulkan_buffer_destroy(context, &context->indirect_draw_infos[i].buffer);
+        darray_VkDrawIndexedIndirectCommand_destroy(&context->indirect_draw_infos[i].commands);
+        darray_indirect_draw_info_destroy(&context->indirect_draw_infos[i].draws);
     }
 
     for (u32 i = 0; i < context->swapchain.image_count; i++) {

@@ -60,7 +60,7 @@ string_format_v(char* dest, const char* format, void* va_listp) {
     if (dest) {
         // Big, but can fit on the stack.
         char buffer[32000];
-        s32 written = vsnprintf(buffer, 32000, format, va_listp);
+        s32 written = vsnprintf(buffer, sizeof(buffer) - 1, format, va_listp);
         buffer[written] = 0;
         scopy_memory(dest, buffer, written + 1);
 
@@ -282,3 +282,14 @@ char* string_empty(char* str) {
     return str;
 }
 
+char* string_concat(char* dest, const char* append) {
+    return strcat(dest, append);
+}
+char* string_nconcat(char* dest, const char* append, u32 max_size) {
+    max_size -= string_length(dest);
+    return strncat(dest, append, max_size);
+}
+
+char* string_start(const char* string, const char* substring) {
+    return strstr(string, substring);
+}

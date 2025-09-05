@@ -7,20 +7,21 @@ void linear_allocator_create(u64 total_size, void* memory, linear_allocator_t* o
     if (out_allocator) {
         out_allocator->total_size = total_size;
         out_allocator->allocated = 0;
-        out_allocator->owns_memory = memory == 0;
-        if (memory) {
-            out_allocator->memory = memory;
-        } else {
+        // out_allocator->owns_memory = memory == NULL;
+        // if (memory) {
+        //     out_allocator->memory = memory;
+        // } else {
             out_allocator->memory = sallocate(total_size, MEMORY_TAG_ALLOCATOR);
-        }
+        // }
     }
 }
 void linear_allocator_destroy(linear_allocator_t* allocator) {
+    SDEBUG("Shutting down linear allocator 1. %p", allocator);
     if (allocator) {
         allocator->allocated = 0;
-        if (allocator->owns_memory && allocator->memory) {
+        // if (allocator->owns_memory && allocator->memory) {
             sfree(allocator->memory, allocator->total_size, MEMORY_TAG_ALLOCATOR);
-        } 
+        // } 
         allocator->memory = 0;
         allocator->total_size = 0;
         allocator->owns_memory = false;

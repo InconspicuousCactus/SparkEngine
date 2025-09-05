@@ -56,7 +56,7 @@ b8 platform_init(
     u32 width,
     u32 height) {
     // Create the internal state.
-    plat_state->internal_state = malloc(sizeof(internal_state));
+    plat_state->internal_state = platform_allocate(sizeof(internal_state), true);
     internal_state* state = (internal_state*)plat_state->internal_state;
 
     // Connect to X
@@ -181,10 +181,12 @@ void platform_shutdown(platform_state_t* plat_state) {
     // Simply cold-cast to the known type.
     internal_state* state = (internal_state*)plat_state->internal_state;
 
+    XCloseDisplay(state->display);
     // Turn key repeats back on since this is global for the OS... just... wow.
     XAutoRepeatOn(state->display);
 
     xcb_destroy_window(state->connection, state->window);
+    platform_free(state, true);
 }
 
 b8 platform_pump_messages(platform_state_t* plat_state) {

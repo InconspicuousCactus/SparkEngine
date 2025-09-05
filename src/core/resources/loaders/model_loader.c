@@ -45,7 +45,7 @@ void model_loader_initialzie(linear_allocator_t* allocator) {
 
 void model_loader_shutdown() {
     block_allocator_destroy(1024, sizeof(model_t), &state->model_allocator);
-    darray_model_ptr_create(1024, &state->models);
+    darray_model_ptr_destroy(&state->models);
     darray_u8_destroy(&state->file_buffer);
 }
 

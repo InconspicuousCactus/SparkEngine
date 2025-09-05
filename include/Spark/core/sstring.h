@@ -183,3 +183,8 @@ SAPI b8 string_to_bool(char* str, b8* b);
  * @return A pointer to str. 
  */
 SAPI char* string_empty(char* str);
+
+SAPI char* string_concat(char* dest, const char* append);
+SAPI char* string_nconcat(char* dest, const char* append, u32 max_size);
+
+SAPI char* string_start(const char* string, const char* substring);

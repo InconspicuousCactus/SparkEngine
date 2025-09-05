@@ -93,6 +93,7 @@ darray_header(entity_archetype_t, entity_archetype);
 // ================================
 typedef struct ecs_component {
     darray_entity_archetype_ptr_t archetypes;
+    void (*destroy_callback)(void* component);
     u32 stride;
 #ifdef SPARK_DEBUG
     const char* name;
@@ -164,5 +165,6 @@ darray_header(ecs_system_t, ecs_system);
 // ================================
 #define ECS_COMPONENT_ID(component) ECS_##component##_ID
 #define ECS_COMPONENT_DECLARE(component) ecs_component_id ECS_COMPONENT_ID(component)
+#define ECS_COMPONENT_ADD_DESTRUCTOR(world, component, destructor) world->components.data[ECS_COMPONENT_ID(component)].destroy_callback = destructor
 #define ECS_SYSTEM_CREATE(world, phase, components, callback) ecs_system_create(world, phase, sizeof(components) / sizeof(ecs_component_id), callback)
 

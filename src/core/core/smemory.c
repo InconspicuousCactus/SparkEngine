@@ -17,23 +17,27 @@
 
 // Used for allocation tracking
 #ifdef SPARK_DEBUG
-#include "Spark/containers/darray.h"
+#include <unistd.h>
+#include <sys/wait.h>
 
+#define ALLOCATION_INFO_BACKTRACE_STRING_SIZE 512
 typedef struct allocation_info {
+    char backtrace[ALLOCATION_INFO_BACKTRACE_STRING_SIZE];
     const char* file;
     u32 line;
     u64 size;
     memory_tag_t tag;
-    void* block;
-    char* backtrace;
+    u32 allocation_index;
 } allocation_info_t;
 
-darray_type(allocation_info_t, allocation_info);
-darray_impl(allocation_info_t, allocation_info);
+const u32 padding_size = 0x100;
+const u32 alloc_info_padding = padding_size - (sizeof(allocation_info_t) % padding_size);
 
 u32 allocation_count = 0;
 u32 allocation_capacity = 0;
-allocation_info_t* tracked_allocations = NULL;
+allocation_info_t** tracked_allocations = NULL;
+
+void addr2line(const char *ptr, const char *elf_name, char* output, u32 output_buffer_size);
 #endif
 
 typedef struct {
@@ -81,7 +85,7 @@ void initialize_memory() {
 #ifdef SPARK_DEBUG 
     allocation_count = 0;
     allocation_capacity = 8192;
-    tracked_allocations = dynamic_allocator_allocate(&state_ptr.allocator, sizeof(allocation_info_t) * allocation_capacity);
+    tracked_allocations = platform_allocate(sizeof(allocation_info_t) * allocation_capacity, true);
 #endif
 }
 
@@ -92,15 +96,35 @@ void
 shutdown_memory() {
 #ifdef SPARK_DEBUG
     // Ensure all allocations are removed
-    if (allocation_count > 0) {
-        SWARN("FAILED TO FREE ALL ALLOCATIONS: %d REMAINING.", allocation_count);
+    for (u32 i = 0; i < allocation_count; i++) {
+        SWARN("File: %s:%d", tracked_allocations[i]->file, tracked_allocations[i]->line);
+
+        const char* backtrace = tracked_allocations[i]->backtrace;
+
+        while (backtrace) {
+            char* addr_text = string_start(backtrace, "(");
+            if (!addr_text) {
+                break;
+            }
+            char address[128] = {};
+            *addr_text = ' ';
+            char* addr_text_end = string_start(backtrace, ")");
+            if (!addr_text_end) {
+                break;
+            }
+            *addr_text_end = 0;
+
+            // NOTE: Hardcoding binary name.
+            addr2line(addr_text, "cube", address, sizeof(address));
+
+            backtrace = addr_text_end + 1;
+
+            SWARN("Backtrace:\n%.*s", ALLOCATION_INFO_BACKTRACE_STRING_SIZE - 1, address);
+        }
     }
 
-    for (u32 i = 0; i < allocation_count; i++) {
-        // SWARN("File: %s:%d", tracked_allocations[i].file, tracked_allocations[i].line);
-        // if (tracked_allocations[i].backtrace) {
-        //     SWARN("Backtrace:\n%s", tracked_allocations[i].backtrace);
-        // }
+    if (allocation_count > 0) {
+        SWARN("FAILED TO FREE ALL ALLOCATIONS: %d REMAINING.", allocation_count);
     }
 #endif
 
@@ -251,86 +275,75 @@ u64 get_memory_alloc_count() {
 }
 
 #ifdef SPARK_DEBUG 
+
+void addr2line(const char *ptr, const char *elf_name, char* output, u32 output_buffer_size) {
+    static char addr2line_str[1024] = {0};
+    sprintf(addr2line_str, "addr2line %s -e %s", ptr, elf_name);
+    FILE* handle = popen(addr2line_str, "r");
+
+    fgets(output, output_buffer_size, handle);
+}
+
 void* 
 create_tracked_allocation(u64 size, memory_tag_t tag, const char* file, u32 line) {
-    void* block = pvt_sallocate(size, tag);
+    void* block = pvt_sallocate(size + sizeof(allocation_info_t) + alloc_info_padding, tag);
 
     // Get backtrace string
     const u32 buffer_size = 100;
     void* buffer[100];
     char** backtrace_strings;
-    u32 backtrace_pointer_count = backtrace(buffer, buffer_size);
-    backtrace_strings = backtrace_symbols(buffer, backtrace_pointer_count);
+    u32 backtrace_count = backtrace(buffer, buffer_size);
+    backtrace_strings = backtrace_symbols(buffer, backtrace_count);
     if (backtrace_strings == NULL) {
         SERROR("backtrace_symbols failed to get symbols");
     }
 
-    // char* backtrace_string = dynamic_allocator_allocate(&state_ptr.allocator, 0x1000);
-    // char* backtrace_string = platform_allocate(0x1000, MEMORY_TAG_STRING);
-    // char* backtrace_string = NULL;
-    // szero_memory(backtrace_string, 0x1000);
-    // for (u32 i = 1, offset = 0; i < backtrace_pointer_count; i++) {
-    //
-    //     u32 p = 0;
-    //     while(backtrace_strings[i][p] != '(' && backtrace_strings[i][p] != ' ' && backtrace_strings[i][p] != 0) {
-    //         ++p;
-    //     }
-    //
-    //     u32 len = string_length(backtrace_strings[i]);
-    //     scopy_memory(backtrace_string + offset, backtrace_strings[i], len);
-    //     backtrace_string[offset + len - 1] = '\n';
-    //     offset += len;
-    // }
+    allocation_info_t* info = block;
+    szero_memory(info->backtrace, ALLOCATION_INFO_BACKTRACE_STRING_SIZE);
+    for (u32 i = 0; i < backtrace_count; i++) {
+        string_nconcat(info->backtrace, backtrace_strings[i], ALLOCATION_INFO_BACKTRACE_STRING_SIZE - 1);
+        string_nconcat(info->backtrace, "\n", ALLOCATION_INFO_BACKTRACE_STRING_SIZE - 1);
+    }
+    free(backtrace_strings);
 
-    // allocation_info_t info = {
-    //     .file = file,
-    //     .line = line,
-    //     .tag = tag,
-    //     .size = size,
-    //     .block = block,
-    //     .backtrace = backtrace_string,
-    // };
-    //
-    // if (tracked_allocations) {
-    //     // Ensure that the darray doesnt try to allocate itself in an infinite loop by managing it here
-    //     if (allocation_count >= allocation_capacity) {
-    //         allocation_info_t* old_allocations = tracked_allocations;
-    //         tracked_allocations = pvt_sallocate(allocation_capacity * 2 * sizeof(allocation_info_t), MEMORY_TAG_ARRAY);
-    //
-    //         scopy_memory(tracked_allocations, old_allocations, allocation_count * sizeof(allocation_info_t));
-    //         pvt_spark_free(old_allocations, sizeof(allocation_info_t) * allocation_capacity, MEMORY_TAG_ARRAY);
-    //         allocation_capacity *= 2;
-    //     }
-    //
-    //     tracked_allocations[allocation_count++] = info;
-    // }
+    info->file = file;
+    info->line = line;
+    info->tag = tag;
+    info->size = size;
+    info->allocation_index = allocation_count;
 
-    return block;
+    if (tracked_allocations) {
+        // Ensure that the darray doesnt try to allocate itself in an infinite loop by managing it here
+        if (allocation_count >= allocation_capacity) {
+            allocation_info_t** old_allocations = tracked_allocations;
+            tracked_allocations = platform_allocate(allocation_capacity * 2 * sizeof(allocation_info_t), true);
+
+            scopy_memory(tracked_allocations, old_allocations, allocation_count * sizeof(allocation_info_t));
+            platform_free(old_allocations, true);
+            allocation_capacity *= 2;
+        }
+
+        tracked_allocations[allocation_count++] = info;
+    }
+
+
+    return block + sizeof(allocation_info_t) + alloc_info_padding;
 }
 
 void 
 free_tracked_allocation(const void* block, u32 size, memory_tag_t tag) {
-    // Find the allocation by its block
-    for (int i = 0; i < allocation_count; i++) {
-        if (tracked_allocations[i].block == block) {
-            // SASSERT(tracked_allocations[i].tag == tag,  "Trying to free allocation with different memory tag than it was initialized with.\n\t\t"
-            //         "Tag: %s\n\t\tFile: %s:%d\n\t\tBacktrace:\n%s", memory_tag_strings[tracked_allocations[i].tag], tracked_allocations[i].file, tracked_allocations[i].line, tracked_allocations[i].backtrace);
-            // SASSERT(tracked_allocations[i].size == size,  "Trying to free allocation with different memory size than it was initialized with.\n\t\t"
-            //         "Expected: %lul\n\t\tGot: %ul\n\t\tFile: %s:%d\n\t\tBacktrace:\n%s", tracked_allocations[i].size, size, tracked_allocations[i].file, tracked_allocations[i].line, tracked_allocations[i].backtrace);
-
-            if (tracked_allocations[i].backtrace) {
-                // dynamic_allocator_free(&state_ptr.allocator, tracked_allocations[i].backtrace);
-                platform_free(tracked_allocations[i].backtrace, true);
-                tracked_allocations[i].backtrace = NULL;
-            }
-
-            for (u32 j = i; j < allocation_count - 1; j++) {
-                tracked_allocations[j] = tracked_allocations[j + 1];
-            }
-                // scopy_memory(&tracked_allocations[i], &tracked_allocations[i + 1], (allocation_count - i) * sizeof(allocation_info_t));
-            allocation_count--;
-        }
+    if (!block) {
+        return;
     }
+    // Find the allocation by its block
+    block -= sizeof(allocation_info_t) + alloc_info_padding;
+    allocation_info_t* info = (void*)block;
+
+    for (u32 i = info->allocation_index; i < allocation_count - 1; i++) {
+        tracked_allocations[i] = tracked_allocations[i + 1];
+        tracked_allocations[i]->allocation_index--;
+    }
+    allocation_count--;
 
     pvt_spark_free(block, size, tag);
 }

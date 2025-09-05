@@ -3,7 +3,6 @@
 #include "Spark/ecs/ecs.h"
 #include "Spark/ecs/ecs_world.h"
 
-#include "Spark/core/smemory.h"
 #include "Spark/ecs/entity.h"
 #include "Spark/math/smath.h"
 
@@ -86,7 +85,7 @@ entity_archetype_t* entity_archetype_create_from_base(struct ecs_world* world, e
     }
 
     out_archetype->columns.count = total_component_count;
-    return &world->archetypes.data[out_archetype->archetype_id];
+    return out_archetype;
 }
 
 void entity_archetype_destroy(entity_archetype_t* archetype) {
@@ -95,7 +94,6 @@ void entity_archetype_destroy(entity_archetype_t* archetype) {
         for (u32 i = 0; i < archetype->columns.count; i++) {
             ecs_component_column_destroy(&archetype->columns.data[i]);
         }
-
         darray_ecs_column_destroy(&archetype->columns);
     }
 

@@ -91,7 +91,12 @@ void select_surface_format(vulkan_context_t* context, VkSurfaceFormatKHR* out_fo
     u32 format_count = 0;
     VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(context->physical_device.handle, context->surface, &format_count, NULL));
 
-    VkSurfaceFormatKHR* formats = sallocate(sizeof(VkSurfaceFormatKHR) * format_count, MEMORY_TAG_ARRAY);
+#define MAX_SURFACE_FORMAT_COUNT 64
+    VkSurfaceFormatKHR formats[MAX_SURFACE_FORMAT_COUNT];
+    if (format_count > MAX_SURFACE_FORMAT_COUNT) {
+        SWARN("Device supports more surface formats than able to store. Got %d, Max: %d", format_count, MAX_SURFACE_FORMAT_COUNT);
+        format_count = MAX_SURFACE_FORMAT_COUNT;
+    }
     VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(context->physical_device.handle, context->surface, &format_count, formats));
 
     *out_format = formats[0];
@@ -100,8 +105,6 @@ void select_surface_format(vulkan_context_t* context, VkSurfaceFormatKHR* out_fo
             *out_format = formats[i];
         }
     }
-
-    sfree(formats, sizeof(VkSurfaceFormatKHR) * format_count, MEMORY_TAG_ARRAY);
 }
 
 VkPresentModeKHR select_present_mode(vulkan_context_t* context) {

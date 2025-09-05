@@ -30,6 +30,23 @@ ecs_world_t* ecs_world_get() {
 }
 
 void ecs_world_shutdown() {
+    // Cleanup all data for components with destructors
+    for (u32 i = 0; i < pvt_ecs_world->components.count; i++) {
+        ecs_component_t* component = &pvt_ecs_world->components.data[i];
+        if (!component->destroy_callback) {
+            continue;
+        }
+
+        for (u32 a = 0; a < component->archetypes.count; a++) {
+            entity_archetype_t* archetype = component->archetypes.data[a];
+            // NOTE: Not sure about the i working as the component id.
+            u32 component_index = ecs_component_set_get_index(&archetype->component_set, i);
+            ecs_column_t* column = &archetype->columns.data[component_index];
+            for (u32 c = 0; c < column->count; c++) {
+                component->destroy_callback(column->data + c * component->stride);
+            }
+        }
+    }
     for (u32 i = 0; i < pvt_ecs_world->archetypes.count; i++) {
         entity_archetype_destroy(&pvt_ecs_world->archetypes.data[i]);
     }

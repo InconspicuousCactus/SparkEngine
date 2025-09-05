@@ -1,6 +1,7 @@
 #include "Spark/ecs/ecs.h"
 #include "Spark/ecs/ecs_world.h"
 #include "Spark/physics/physics.h"
+#include "Spark/physics/physics_backend.h"
 #include "Spark/renderer/material.h"
 #include "Spark/renderer/mesh.h"
 #include "Spark/types/aabb.h"
@@ -58,7 +59,11 @@ void ecs_register_types(ecs_world_t* world) {
     ECS_COMPONENT_DEFINE(world, entity_parent_t);
     ECS_COMPONENT_DEFINE(world, entity_child_t);
 
+    ECS_COMPONENT_ADD_DESTRUCTOR(world, entity_child_t, entity_child_destroy_callback);
+
     // Physics
     ECS_COMPONENT_DEFINE(world, physics_body_t);
     ECS_COMPONENT_DEFINE(world, velocity_t);
+
+    ECS_COMPONENT_ADD_DESTRUCTOR(world, physics_body_t, physics_body_destroy);
 }

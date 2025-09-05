@@ -266,6 +266,10 @@ application_run() {
     event_shutdown();
     input_shutdown();
     ecs_world_shutdown();
+    physics_backend_shutdown();
+
+    linear_allocator_destroy(&app_state->systems_allocator);
+    sfree(app_state->game_inst->application_state, sizeof(application_state_t), MEMORY_TAG_GAME);
 
     platform_shutdown(&app_state->platform);
     shutdown_logging(app_state->logging_system_state);

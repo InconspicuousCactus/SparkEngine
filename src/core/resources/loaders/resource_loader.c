@@ -59,8 +59,8 @@ void resource_loader_shutdown() {
     model_loader_shutdown();
 
     // Destroy private data
-    // resource_map_destroy(&loader_state->resources);
-    // darray_u8_destroy(&loader_state->resource_buffer);
+    resource_map_destroy(&loader_state->resources);
+    darray_u8_destroy(&loader_state->resource_buffer);
 }
 
 resource_t resource_loader_get_resource(const char* path, b8 auto_delete) {

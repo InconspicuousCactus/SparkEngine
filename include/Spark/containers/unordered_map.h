@@ -42,6 +42,7 @@
         for (u32 i = 0; i < hashmap->capacity; i++) {                                                \
             darray_##name##_pair_destroy(&hashmap->pairs[i]);                                        \
         }                                                                                            \
+        sfree(hashmap->pairs, sizeof(darray_##name##_pair_t) * hashmap->capacity, MEMORY_TAG_ARRAY); \
     }                                                                                                \
     void name##_remove(const name##_t* hashmap, key_type key) {                                            \
         hash_t hash = hash_function(key);                                                            \
