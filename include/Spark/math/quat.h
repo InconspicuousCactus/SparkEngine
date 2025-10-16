@@ -8,7 +8,7 @@
 // ------------------------------------------
 
 SINLINE quat quat_identity() {
-    return (quat){{0, 0, 0, 1.0f}};
+    return (quat){0, 0, 0, 1.0f};
 }
 
 SINLINE f32 quat_normal(quat q) {
@@ -22,18 +22,18 @@ SINLINE f32 quat_normal(quat q) {
 SINLINE quat quat_normalize(quat q) {
     f32 normal = quat_normal(q);
     return (quat){
-        {q.x / normal,
+        q.x / normal,
         q.y / normal,
         q.z / normal,
-        q.w / normal}};
+        q.w / normal};
 }
 
 SINLINE quat quat_conjugate(quat q) {
     return (quat){
-        {-q.x,
+        -q.x,
         -q.y,
         -q.z,
-        q.w}};
+        q.w};
 }
 
 SINLINE quat quat_inverse(quat q) {
@@ -127,7 +127,7 @@ SINLINE quat quat_from_axis_angle(vec3 axis, f32 angle, b8 normalize) {
     f32 s = ssin(half_angle);
     f32 c = scos(half_angle);
 
-    quat q = (quat){{s * axis.x, s * axis.y, s * axis.z, c}};
+    quat q = (quat){s * axis.x, s * axis.y, s * axis.z, c};
     if (normalize) {
         return quat_normalize(q);
     }
@@ -196,10 +196,10 @@ SINLINE quat quat_slerp(quat q_0, quat q_1, f32 percentage) {
         // If the inputs are too close for comfort, linearly interpolate
         // and normalize the result.
         out_quaternion = (quat){
-            {v0.x + ((v1.x - v0.x) * percentage),
+            v0.x + ((v1.x - v0.x) * percentage),
                 v0.y + ((v1.y - v0.y) * percentage),
                 v0.z + ((v1.z - v0.z) * percentage),
-                v0.w + ((v1.w - v0.w) * percentage)}};
+                v0.w + ((v1.w - v0.w) * percentage)};
 
         return quat_normalize(out_quaternion);
     }
@@ -214,10 +214,10 @@ SINLINE quat quat_slerp(quat q_0, quat q_1, f32 percentage) {
     f32 s1 = sin_theta / sin_theta_0;
 
     return (quat){
-        {(v0.x * s0) + (v1.x * s1),
+        (v0.x * s0) + (v1.x * s1),
             (v0.y * s0) + (v1.y * s1),
             (v0.z * s0) + (v1.z * s1),
-            (v0.w * s0) + (v1.w * s1)}};
+            (v0.w * s0) + (v1.w * s1)};
 }
 
 /**

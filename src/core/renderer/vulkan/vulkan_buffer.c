@@ -123,9 +123,12 @@ void vulkan_buffer_set_data(struct vulkan_context* context, vulkan_buffer_t* buf
 
 
 void vulkan_buffer_update(struct vulkan_context* context, vulkan_buffer_t* buffer, const void* data, u32 size, u32 offset) {
+    if (size <= 0) {
+        return;
+    }
     void* memory = NULL;
-    VK_CHECK(vkMapMemory(context->logical_device, buffer->memory, 0, size, 0, &memory));
-    scopy_memory(memory + offset, data, size);
+    VK_CHECK(vkMapMemory(context->logical_device, buffer->memory, offset, size, 0, &memory));
+    scopy_memory(memory, data, size);
     vkUnmapMemory(context->logical_device, buffer->memory);
 }
 

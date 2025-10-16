@@ -59,19 +59,19 @@ SINLINE vec2 vec2_left() {
 }
 
 SINLINE vec2 vec2_add(vec2 a, vec2 b) { 
-    return (vec2){{a.x + b.x, a.y + b.y}};
+    return (vec2){a.x + b.x, a.y + b.y};
 }
 
 SINLINE vec2 vec2_sub(vec2 a, vec2 b) { 
-    return (vec2){{a.x - b.x, a.y - b.y}};
+    return (vec2){a.x - b.x, a.y - b.y};
 }
 
 SINLINE vec2 vec2_mul(vec2 a, vec2 b) { 
-    return (vec2){{a.x * b.x, a.y * b.y}};
+    return (vec2){a.x * b.x, a.y * b.y};
 }
 
 SINLINE vec2 vec2_div(vec2 a, vec2 b) { 
-    return (vec2){{a.x / b.x, a.y / b.y}};
+    return (vec2){a.x / b.x, a.y / b.y};
 }
 
 SINLINE f32 vec2_length_squared(vec2 vector) {

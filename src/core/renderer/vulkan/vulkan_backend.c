@@ -4,6 +4,7 @@
 #include "Spark/core/sstring.h"
 #include "Spark/defines.h"
 #include "Spark/math/mat4.h"
+#include "Spark/math/quat.h"
 #include "Spark/renderer/material.h"
 #include "Spark/renderer/mesh.h"
 #include "Spark/renderer/renderer_types.h"
@@ -119,7 +120,13 @@ b8 vulkan_renderer_initialize(const char* application_name, struct platform_stat
             &context->index_buffer);
 
     // Uniform buffers
-    mat4 identity = mat4_translation((vec3) { {0, 0, 0} });
+    mat4 identity = mat4_translation((vec3) { 0, 0, 0 });
+    vulkan_buffer_create(context, 
+            sizeof(mat4), 
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
+            &context->graphics_queue, 
+            &context->uniform_buffer_skybox);
     vulkan_buffer_create(context, 
             sizeof(mat4), 
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
@@ -132,6 +139,7 @@ b8 vulkan_renderer_initialize(const char* application_name, struct platform_stat
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
             &context->graphics_queue, 
             &context->uniform_buffer_ui);
+    vulkan_buffer_update(context, &context->uniform_buffer_skybox, &identity, sizeof(identity), 0);
     vulkan_buffer_update(context, &context->uniform_buffer_3d, &identity, sizeof(identity), 0);
     vulkan_buffer_update(context, &context->uniform_buffer_ui, &identity, sizeof(identity), 0);
 
@@ -196,13 +204,14 @@ b8 vulkan_renderer_shutdown() {
 
     vulkan_image_destroy(context, &context->default_texture);
 
+    vulkan_buffer_destroy(context, &context->uniform_buffer_skybox);
     vulkan_buffer_destroy(context, &context->uniform_buffer_3d);
     vulkan_buffer_destroy(context, &context->uniform_buffer_ui);
     vulkan_buffer_destroy(context, &context->vertex_buffer);
     vulkan_buffer_destroy(context, &context->index_buffer);
     vulkan_buffer_destroy(context, &context->instance_buffer);
 
-    for (u32 i = 0; i < BUILTIN_RENDERPASS_MAX; i++) {
+    for (u32 i = 0; i < BUILTIN_RENDERPASS_ENUM_MAX; i++) {
         vulkan_renderpass_destroy(context, &context->renderpasses[i]);
     }
 
@@ -258,12 +267,12 @@ void vulkan_renderer_resize(u16 width, u16 height) {
     context->screen_height = height;
     vulkan_swapchain_recreate(context, &context->swapchain);
 
-    for (u32 i = 0; i < BUILTIN_RENDERPASS_MAX; i++) {
+    for (u32 i = 0; i < BUILTIN_RENDERPASS_ENUM_MAX; i++) {
         vulkan_renderpass_update_framebuffers(context, &context->renderpasses[i]);
     }
 }
 
-void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, render_packet_t* packet, builtin_renderpass_t filter, VkRect2D render_area) {
+void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, VkRect2D render_area, u32 draw_index) {
     vulkan_renderpass_begin(renderpass, command_buffer, render_area, context->image_index);
     VkViewport viewport = {
         .x = 0,
@@ -288,16 +297,86 @@ void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buf
     for (u32 i = 0; i < info->draws.count; i++) {
         indirect_draw_info_t* draw = &info->draws.data[i];
 
-        if (filter != draw->shader_type) {
-            continue;
-        }
-
         if (old_material != draw->material_index) {
             old_material = draw->material_index;
             vulkan_material_bind(context, command_buffer, material_loader_get_material(draw->material_index));
         }
 
         vkCmdDrawIndexedIndirect(command_buffer->handle, info->buffer.handle, sizeof(VkDrawIndexedIndirectCommand) * i, 1, sizeof(VkDrawIndexedIndirectCommand));
+    }
+    vulkan_renderpass_end(command_buffer);
+}
+
+void create_indirect_draw_commands(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, VkRect2D render_area, const renderpass_geometry_t* renderpass_geo, u32 renderpass_index, vulkan_indirect_render_info_t* indirect_info, u32* instance_offset, u32* draw_offset) {
+    if (renderpass_geo->geometry_count <= 0) {
+        return;
+    }
+    vulkan_renderpass_begin(renderpass, command_buffer, render_area, context->image_index);
+    VkViewport viewport = {
+        .x = 0,
+        .y = 0,
+        .width = context->screen_width,
+        .height = context->screen_height,
+        .minDepth = 0,
+        .maxDepth = 1,
+    };
+    vkCmdSetViewport(command_buffer->handle, 0, 1, &viewport);
+
+    VkRect2D scissor = {
+        .extent = {
+            .width = context->screen_width,
+            .height = context->screen_height,
+        },
+    };
+    vkCmdSetScissor(command_buffer->handle, 0, 1, &scissor);
+
+    u32 instance_count = 0;
+    u32 old_material = INVALID_ID;
+    vulkan_indirect_render_info_t* info = &context->indirect_draw_infos[context->current_frame];
+    for (u32 i = 0, command_index = 0; i < renderpass_geo->geometry_count; i++) {
+        instance_count++;
+        geometry_render_data_t* geometry = &renderpass_geo->geometry[i];
+        vulkan_mesh_t* mesh = &context->meshes.data[geometry->mesh.internal_index];
+        u32 material = geometry->material->internal_index;
+
+        darray_mat4_push(&context->local_instance_buffer, geometry->model);
+
+        b8 is_instance = false;
+        if (i < renderpass_geo->geometry_count - 1) {
+            geometry_render_data_t* next_geometry = &renderpass_geo->geometry[i + 1];
+            u32 next_material = geometry->material->internal_index;
+
+            is_instance = geometry->mesh.internal_index == next_geometry->mesh.internal_index && next_material == material;
+        }
+
+        if (!is_instance) {
+            indirect_draw_info_t draw_info = (indirect_draw_info_t) {
+                .material_index = material,
+                    .command_index = command_index++,
+                    .shader_type = renderpass_index,
+            };
+
+            // SDEBUG("Drawing mesh: First index: %d, Index Count: %d, Instance Count: %d, Instance Offset: %d, Vertex Offset: %d", mesh->index_start, mesh->index_count, instance_count, *instance_offset, mesh->vertex_start);
+            darray_VkDrawIndexedIndirectCommand_push(&indirect_info->commands, (VkDrawIndexedIndirectCommand) {
+                    .firstIndex = mesh->index_start,
+                    .indexCount = mesh->index_count,
+                    .vertexOffset = mesh->vertex_start,
+                    .firstInstance = *instance_offset,
+                    .instanceCount = instance_count,
+                    });
+            // SDEBUG("Drawing Mesh. Index Start: %d, Index Count: %d, Vertex Start: %d, Vertex Count: %d, First Instance: %d, Instance Count: %d", mesh->index_start, mesh->index_count, mesh->vertex_start, mesh->vertex_count, *instance_offset, instance_count);
+
+            darray_indirect_draw_info_push(&indirect_info->draws, draw_info);
+            *instance_offset += instance_count;
+            instance_count = 0;
+            if (old_material != material) {
+                old_material = material;
+                vulkan_material_bind(context, command_buffer, material_loader_get_material(material));
+            }
+
+            vkCmdDrawIndexedIndirect(command_buffer->handle, info->buffer.handle, sizeof(VkDrawIndexedIndirectCommand) * *draw_offset, 1, sizeof(VkDrawIndexedIndirectCommand));
+            *draw_offset += 1;
+        } 
     }
     vulkan_renderpass_end(command_buffer);
 }
@@ -326,74 +405,38 @@ b8 vulkan_renderer_draw_frame(render_packet_t* packet) {
     indirect_info->commands.count = 0;
     context->local_instance_buffer.count = 0;
 
+    // Update uniforms
+    mat4 translation = mat4_translation(packet->view_pos);
+    mat4 rotation = quat_to_mat4(packet->view_rotation);
+    mat4 local = mat4_inverse(mat4_mul(rotation, translation));
+
+    mat4 view_project_matrix = mat4_mul(local, packet->projection_matrix);
+    mat4 skybox_view_project_matrix = mat4_mul(mat4_inverse(rotation), packet->projection_matrix);
+
+
+    const mat4 ui_project_matrix = mat4_mul(mat4_scale((vec3) {.x = 2, .y = 2, .z = 1}), mat4_translation((vec3) { .x = -1, .y = -1}));
+    vulkan_buffer_update(context, &context->uniform_buffer_skybox, &skybox_view_project_matrix, sizeof(mat4), 0);
+    vulkan_buffer_update(context, &context->uniform_buffer_3d, &view_project_matrix, sizeof(mat4), 0);
+    vulkan_buffer_update(context, &context->uniform_buffer_ui, &ui_project_matrix, sizeof(mat4), 0);
+
     // Mesh instances
-    indirect_draw_info_t draw_info = {};
-    u32 old_mesh = INVALID_ID;
-    u32 old_material = INVALID_ID;
-    VkDrawIndexedIndirectCommand command = {};
-    for (u32 renderpass_index = 0; renderpass_index < BUILTIN_RENDERPASS_MAX; renderpass_index++) {
+    darray_VkDrawIndexedIndirectCommand_clear(&indirect_info->commands);
+    darray_mat4_clear(&context->local_instance_buffer);
+    darray_indirect_draw_info_clear(&indirect_info->draws);
+
+    u32 instance_offset = 0;
+    u32 command_offset = 0;
+    for (u32 renderpass_index = 0; renderpass_index < BUILTIN_RENDERPASS_ENUM_MAX; renderpass_index++) {
         const renderpass_geometry_t* renderpass = &packet->renderpass_geometry[renderpass_index];
+        create_indirect_draw_commands(&context->renderpasses[renderpass_index], command_buffer, render_area, renderpass, renderpass_index, indirect_info, &instance_offset, &command_offset);
 
-        for (u32 i = 0, instance_offset = 0, command_index = 0; i < renderpass->geometry_count; i++, instance_offset++) {
-            geometry_render_data_t* geometry = &renderpass->geometry[i];
-            darray_mat4_push(&context->local_instance_buffer, geometry->model);
-
-            vulkan_mesh_t* mesh = &context->meshes.data[geometry->mesh.internal_index];
-            u32 material = geometry->material->internal_index;
-
-            // Just modify command if its the same exact call
-            b8 is_instance = geometry->mesh.internal_index == old_mesh && material == old_material;
-            if (!is_instance || i == renderpass->geometry_count - 1) {
-                // Otherwise, its a new command and needs to be submitted
-                draw_info = 
-                    (indirect_draw_info_t) {
-                        .material_index = material,
-                        .command_index = command_index++,
-                    };
-
-                // TODO: Refactor shader type to be the builtin renderpass
-                draw_info.shader_type = shader_loader_get_shader(geometry->material->shader_index)->type;
-                darray_VkDrawIndexedIndirectCommand_push(&indirect_info->commands, command);
-                darray_indirect_draw_info_push(&indirect_info->draws, draw_info);
-            }
-            if (is_instance) {
-                command.instanceCount++;
-                continue;
-            } 
-
-            old_material = geometry->material->internal_index;
-            old_mesh = geometry->mesh.internal_index;
-            command = 
-                (VkDrawIndexedIndirectCommand) {
-                    .firstIndex = mesh->index_start,
-                    .firstInstance = instance_offset,
-                    .indexCount = mesh->index_count,
-                    .instanceCount = 1,
-                    .vertexOffset = mesh->vertex_start,
-                };
-        }
+        // Draw all of the geometry
+        // render_geometry_in_pass(&context->renderpasses[renderpass_index], command_buffer, render_area, command_offset);
+        // command_offset += indirect_info->commands.count;
     }
 
     vulkan_buffer_update(context, &indirect_info->buffer, indirect_info->commands.data, indirect_info->commands.count * sizeof(VkDrawIndexedIndirectCommand), 0);
     vulkan_buffer_update(context, &context->instance_buffer, context->local_instance_buffer.data, context->local_instance_buffer.count * sizeof(mat4), 0);
-
-    // Update uniforms
-    mat4 view_project_matrix = mat4_mul(packet->view_matrix, packet->projection_matrix);
-    const mat4 ui_project_matrix = mat4_mul(mat4_scale((vec3) {.x = 2, .y = 2, .z = 1}), mat4_translation((vec3) { .x = -1, .y = -1}));
-    vulkan_buffer_update(context, &context->uniform_buffer_3d, &view_project_matrix, sizeof(mat4), 0);
-    vulkan_buffer_update(context, &context->uniform_buffer_ui, &ui_project_matrix, sizeof(mat4), 0);
-
-
-    // Draw all of the geometry
-    for (u32 i = 0; i < BUILTIN_RENDERPASS_MAX; i++) {
-        switch ((builtin_renderpass_t)i) {
-            case BUILTIN_RENDERPASS_SKYBOX:
-                break;
-            default:
-                render_geometry_in_pass(&context->renderpasses[i], command_buffer, packet, i, render_area);
-                break;
-        }
-    }
     return true;
 }
 
@@ -425,19 +468,24 @@ b8 vulkan_renderer_end_frame() {
     return true;
 }
 
-mesh_t vulkan_create_mesh(void* vertices, u32 vertex_count, u32 vertex_stride, void* indices, u32 index_count, u32 index_stride) {
+mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_stride, const void* indices, u32 index_count, u32 index_stride) {
     SASSERT(vertex_stride > 0, "Cannot add vertices with stride of 0.");
     SASSERT(index_stride > 0,  "Cannot add indices with stride of 0.");
+    // SDEBUG("Creating mesh: Vertex count: %d, Stride: %d, Offset: %d, Index count: %d, Stride: %d, Offset: %d", vertex_count, vertex_stride, context->vertex_buffer_offset, index_count, index_stride, context->index_buffer_offset);
+    SASSERT(index_stride == 4, "Short index not implemented.");
 
     // Pad the vertex buffer so that shaders can have unique vertex layouts
     u32 index_padding = index_stride - (context->index_buffer_offset % index_stride);
     if (index_padding != index_stride) {
-        context->vertex_buffer_offset += index_padding;
+        context->index_buffer_offset += index_padding;
     }
     u32 vertex_padding = vertex_stride - (context->vertex_buffer_offset % vertex_stride);
     if (vertex_padding != vertex_stride) {
         context->vertex_buffer_offset += vertex_padding;
     }
+
+    SASSERT(context->vertex_buffer_offset % vertex_stride == 0, "Invalid vbo");
+    SASSERT(context->index_buffer_offset % index_stride == 0, "Invalid vbo");
 
     vulkan_mesh_t internal_mesh = {
         .index_count = index_count,
@@ -446,6 +494,7 @@ mesh_t vulkan_create_mesh(void* vertices, u32 vertex_count, u32 vertex_stride, v
         .vertex_stride = vertex_stride,
         .vertex_start = context->vertex_buffer_offset / vertex_stride,
     };
+    // SDEBUG("\tIndext Start: %d, Vertex Start: %d", internal_mesh.index_start, internal_mesh.vertex_start);
 
     // Set buffers
     vulkan_buffer_update(context, &context->vertex_buffer, vertices, vertex_count * vertex_stride, context->vertex_buffer_offset);
@@ -478,12 +527,22 @@ shader_t vulkan_create_shader(shader_config_t* config) {
         vulkan_shader_module_create(context, (u32*)config->fragment_spv, config->fragment_spv_size, &shader.frag);
     }
 
-    SASSERT(config->type >= 0 && config->type < BUILTIN_RENDERPASS_MAX, "Cannot create shader for invalid renderpass: %d", config->type);
+    SASSERT(config->type >= 0 && config->type < BUILTIN_RENDERPASS_ENUM_MAX, "Cannot create shader for invalid renderpass: %d", config->type);
     vulkan_renderpass_t* renderpass = &context->renderpasses[config->type];
     vulkan_shader_create(context, renderpass, 0, config->attribute_count, config->attributes, config->resource_count, config->layout, true, &shader);
 
     // Bind shader globals
-    shader_resource_t uniform_resource[] = { 
+    shader_resource_t skybox_uniform_resource[] = { 
+        {
+            .layout = {
+                .binding = 0,
+                .set = 0,
+                .type = SHADER_RESOURCE_UNIFORM_BUFFER,
+            },
+            .data = &context->uniform_buffer_skybox,
+        },
+    };
+    shader_resource_t world_uniform_resource[] = { 
         {
             .layout = {
                 .binding = 0,
@@ -512,15 +571,15 @@ shader_t vulkan_create_shader(shader_config_t* config) {
 
     switch (config->type) {
         case BUILTIN_RENDERPASS_SKYBOX:
-            SERROR("Skybox renderpass not implemented.");
+            vulkan_shader_bind_resources(context, &shader, 0, 1, skybox_uniform_resource);
             break;
         case BUILTIN_RENDERPASS_WORLD:
-            vulkan_shader_bind_resources(context, &shader, 0, 2, uniform_resource);
+            vulkan_shader_bind_resources(context, &shader, 0, 2, world_uniform_resource);
             break;
         case BUILTIN_RENDERPASS_UI:
             vulkan_shader_bind_resources(context, &shader, 0, 1, &ui_uniform_resource);
             break;
-        case BUILTIN_RENDERPASS_MAX:
+        case BUILTIN_RENDERPASS_ENUM_MAX:
             break;
     }
 
@@ -528,7 +587,7 @@ shader_t vulkan_create_shader(shader_config_t* config) {
         .resource_count  = config->resource_count,
         .attribute_count = config->attribute_count,
         .internal_index  = context->shaders.count,
-        .type            = config->type,
+        .renderpass            = config->type,
     };
     scopy_memory(shader_base.attributes, config->attributes, sizeof(config->attributes));
     scopy_memory(shader_base.layout, config->layout, sizeof(config->layout));
@@ -672,8 +731,8 @@ material_t vulkan_create_material(material_config_t* config) {
 
         switch (config->resources[i].type) {
             case SHADER_RESOURCE_UNDEFINED:
-              SERROR("Cannot use undefined shader resource.");
-              break;
+                SERROR("Cannot use undefined shader resource.");
+                break;
             case SHADER_RESOURCE_SOTRAGE_BUFFER:
                 vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material.sets[set], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &buffer_info[i], &descriptor_writes[i]);
                 break;
@@ -696,8 +755,8 @@ material_t vulkan_create_material(material_config_t* config) {
                         .pImageInfo      = &image_infos[i],
                         .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                     };
-              break;
-            }
+                break;
+        }
     }
 
     vkUpdateDescriptorSets(context->logical_device, config->resource_count, descriptor_writes, 0, NULL);
@@ -1174,8 +1233,8 @@ void create_renderpasses() {
         }
     };
 
-    vulkan_renderpass_create(context, clear_color, false, false, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_SKYBOX]);
-    vulkan_renderpass_create(context, clear_color, true, true,   context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_WORLD]); 
+    vulkan_renderpass_create(context, clear_color, true, true, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_SKYBOX]);
+    vulkan_renderpass_create(context, clear_color, true, false,   context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_WORLD]); 
     vulkan_renderpass_create(context, clear_color, false, false, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_UI]);
 }
 

@@ -1,5 +1,6 @@
 #include "Spark/resources/loaders/model_loader.h"
 #include "Spark/containers/generic/darray_ints.h"
+#include "Spark/core/smemory.h"
 #include "Spark/core/sstring.h"
 #include "Spark/defines.h"
 #include "Spark/ecs/components/entity_child.h"
@@ -56,7 +57,7 @@ resource_t pvt_model_loader_load_text_resource(const char* text, u32 length, b8 
 
     const u32 max_args = 8;
     const u32 max_arg_length = 64;
-    char args[max_args][max_arg_length];
+    char args[max_args][max_arg_length] = {};
 
     for (u32 offset = 0; offset < length;) {
         u32 arg_count = 0;
@@ -86,21 +87,24 @@ resource_t create_model_from_config(model_config_t* config) {
     u64 file_size = 0;
     filesystem_get_file_size(&file_handle, &file_size);
     darray_u8_reserve(&state->file_buffer, file_size);
+    sset_memory(&state->file_buffer, 0, state->file_buffer.count);
+    darray_u8_clear(&state->file_buffer);
 
     u64 bytes_read = 0;
     filesystem_read_all_bytes(&file_handle, state->file_buffer.data, &bytes_read);
     filesystem_close(&file_handle);
 
+    SASSERT(bytes_read > 0, "Failed to read data from model file at '%s'", config->path);
     SASSERT(*(u32*)state->file_buffer.data == S3D_FILE_MAGIC, "Model '%s' is not an S3D mseh.", config->path);
     s3d_t* header = (s3d_t*)state->file_buffer.data;
 
-    void* vertices = state->file_buffer.data + header->vertex_offset;
+    vertex_3d_t* vertices = (void*)state->file_buffer.data + header->vertex_offset;
     void* indices = state->file_buffer.data + header->index_offset;
 
     // Load textures
     s3d_texture_t* s3d_textures = ((void*)header) + header->texture_offset;
     const u32 max_texture_count = 64;
-    texture_t textures[max_texture_count];
+    texture_t textures[max_texture_count] = {};
 
     SASSERT(header->texture_count < max_texture_count, "S3d has too many textures, max of %d, got %d", max_texture_count, header->texture_count);
 
@@ -117,7 +121,7 @@ resource_t create_model_from_config(model_config_t* config) {
     // Load materials
     s3d_material_t* s3d_materials = ((void*)header) + header->material_offset;
     const u32 max_material_count = 64;
-    material_t* materials[max_material_count];
+    material_t* materials[max_material_count] = {};
 
     SASSERT(header->material_count < max_material_count, "S3d has too many materials, max of %d, got %d", max_material_count, header->material_count);
 
@@ -144,11 +148,11 @@ resource_t create_model_from_config(model_config_t* config) {
     }
 
     const u32 max_models = 1024;
-    model_t* models[max_models];
+    model_t* models[max_models] = {};
 
     u32 resource_index = 0;
     for (u32 i = 0; i < header->object_count; i++) {
-        s3d_object_t* object = (s3d_object_t*)(state->file_buffer.data + sizeof(s3d_t) + sizeof(s3d_object_t) * i);
+        s3d_object_t* object = (s3d_object_t*)((void*)state->file_buffer.data + sizeof(s3d_t) + sizeof(s3d_object_t) * i);
         model_t* model = block_allocator_allocate(&state->model_allocator);
         models[i] = model;
         model->material_index = INVALID_ID_U16;
@@ -207,6 +211,7 @@ entity_t load_model_entity(ecs_world_t* world, model_t* model, entity_t parent, 
         entity_add_child(world, parent, e);
     } 
 
+    SDEBUG("Adding mesh %p / %d", model, model->mesh.internal_index);
     if (model->mesh.internal_index != INVALID_ID_U16) {
         ENTITY_SET_COMPONENT(world, e, mesh_t, model->mesh);
 
@@ -219,12 +224,7 @@ entity_t load_model_entity(ecs_world_t* world, model_t* model, entity_t parent, 
     }
 
 
-    ENTITY_SET_COMPONENT(world, e, translation_t, (translation_t) { model->translation });
-    ENTITY_SET_COMPONENT(world, e, rotation_t,    (rotation_t)    { model->rotation});
-    ENTITY_SET_COMPONENT(world, e, scale_t,       (scale_t)       { model->scale });
-    ENTITY_SET_COMPONENT(world, e, dirty_transform_t, { true });
-    ENTITY_ADD_COMPONENT(world, e, local_to_world_t);
-
+    entity_add_transforms(world, e, model->translation, model->scale, model->rotation);
     return e;
 }
 

@@ -126,12 +126,10 @@ foreach (dir IN ITEMS ${SPARK_RESOURCE_DIRS})
 
         if (${file_extension} STREQUAL ".glb")
             set(new_extension ".s3d")
-        elseif (${file_extension} STREQUAL ".frag.glsl")
-            set(new_extension ".frag.spv")
-        elseif (${file_extension} STREQUAL ".vert.glsl")
-            set(new_extension ".vert.spv")
+        elseif (${file_extension} STREQUAL ".glsl")
+            set(new_extension "")
         elseif (${file_extension} STREQUAL ".trs")
-            set(new_extension ".trs")
+            set(new_extension "")
         elseif ((${file_extension} STREQUAL ".psd")   OR 
                 (${file_extension} STREQUAL ".xcf")   OR 
                 (${file_extension} STREQUAL ".blend") OR 

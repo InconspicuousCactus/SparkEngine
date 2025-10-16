@@ -45,19 +45,22 @@ char* read_token(const char* input, u32* out_token_length) {
             token_length++;
             input++;
         }
+    } else if (*input == ';') {
+        token_length++;
+        input++;
     } else if (is_variable_char(*input)) { // Variables
         while (is_variable_char(*input) && !is_whitespace(*input)) {
             input++;
             token_length++;
         }
     } else if (!is_variable_char(*input)) { // Other
-        while (!is_variable_char(*input) && !is_whitespace(*input)) {
+        while (!is_variable_char(*input) && !is_whitespace(*input) && *input != 0) {
             input++;
             token_length++;
         }
     }
 
-    char* token = malloc(token_length);
+    char* token = malloc(token_length + 1);
     token[token_length] = 0;
 
     strncpy(token, text_start, token_length);
@@ -65,13 +68,36 @@ char* read_token(const char* input, u32* out_token_length) {
     return token;
 }
 
-char** tokenize(const char* input, u32* out_token_count) {
+char** tokenize(char* input, u32* out_token_count) {
     u32 token_capacity = 1024;
     *out_token_count = 0;
     char** tokens = malloc(sizeof(char*) * token_capacity);
 
     u32 input_length = strlen(input);
     const char* max_input = input + input_length;
+
+    // Delete comments
+    for (u32 i = 0; i < input_length; i++) {
+        while (string_equal_literal(input + i, "//")) {
+            input[i + 0] = ' ';
+            input[i + 1] = ' ';
+            while (input[i] != '\n') {
+                input[i] = ' ';
+                i++;
+            }
+            i++;
+        }
+        while (string_equal_literal(input + i, "/*")) {
+            input[i + 0] = ' ';
+            input[i + 1] = ' ';
+            while (!string_equal_literal(input + i, "*/")) {
+                input[i] = ' ';
+                i++;
+            }
+            input[i + 0] = ' ';
+            input[i + 1] = ' ';
+        }
+    }
 
     u32 token_count = 0;
     while (input < max_input) {
@@ -80,19 +106,6 @@ char** tokenize(const char* input, u32* out_token_count) {
             input++;
         }
 
-        // Delete comments
-        while (string_equal_literal(input, "//")) {
-            while (*input != '\n') {
-                input++;
-            }
-            input++;
-        }
-        while (string_equal_literal(input, "/*")) {
-            while (!string_equal_literal(input, "*/")) {
-                input++;
-            }
-            input += 2;
-        }
 
         // Skip whitespace
         while (is_whitespace(*input)) {
@@ -171,7 +184,7 @@ void skip_function(const char** tokens, u32* token_offset, u32 token_count) {
     *token_offset -= 1;
 }
 
-b8 compile_stage(const char* file, const char** tokens, const u32 token_count, shader_stage_flags_t stage, char** out_file_name) {
+b8 compile_stage(const char* file, const char** tokens, const u32 token_count, shader_stage_flags_t stage, char** out_file_name, char** out_temp_name) {
     const char* shader_stage_names[SHADER_STAGE_ENUM_MAX] = {
         "",
         "vert",
@@ -186,6 +199,9 @@ b8 compile_stage(const char* file, const char** tokens, const u32 token_count, s
     strncat(temp_file_name, ".", temp_file_name_size - 1);
     strncat(temp_file_name, shader_stage_names[stage], temp_file_name_size - 1);
     strncat(temp_file_name, ".tmp", temp_file_name_size - 1);
+
+    *out_temp_name = malloc(temp_file_name_size);
+    strcpy(*out_temp_name, temp_file_name);
 
     FILE* out_file = fopen(temp_file_name, "w");
 
@@ -276,6 +292,7 @@ b8 compile_stage(const char* file, const char** tokens, const u32 token_count, s
             fwrite("\n", 1, 1, out_file);
         }
     }
+    fwrite("\n", 1, 1, out_file);
     fclose(out_file);
 
 
@@ -298,12 +315,12 @@ b8 create_shader_config(const char* file_name, const char** tokens, u32 token_co
     for (u32 i = 0; i < token_count - 1; i++) {
         // Found the vertex input struct
         if (string_equal(tokens[i], "struct") && string_equal(tokens[i + 1], "vertex_input")) {
-            while (!string_contains(tokens[i], '}')) {
                 while (!string_contains(tokens[i], '{')) {
                     i++;
                 }
                 i++;
 
+            while (!string_contains(tokens[i], '}')) {
                 if (string_equal(tokens[i], "float")) {
                     out_config->attributes[out_config->attribute_count++] = VERTEX_ATTRIBUTE_FLOAT;
                 } else if (string_equal(tokens[i], "vec2")) {
@@ -331,6 +348,7 @@ b8 create_shader_config(const char* file_name, const char** tokens, u32 token_co
                 }
                 i++;
             }
+            continue;
         }
 
         // Search for resources
@@ -400,8 +418,29 @@ b8 append_file_contents(FILE* file, const char* file_path, u32* out_length) {
     void* buffer = malloc(*out_length);
     fread(buffer, *out_length, 1, src);
     fwrite(buffer, *out_length, 1, file);
+    free(buffer);
 
     return true;
+}
+
+void throw_shader_compile_error(const char* file_path, const char* temp_path) {
+    char shader_buffer[4096] = "  1: ";
+    printf("Opening file: '%s'\n", temp_path);
+    FILE* file = fopen(temp_path, "r");
+    fseek(file, 0, SEEK_END);
+    u32 file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    for (u32 i = 0, offset = 5, line = 2; i < file_size; i++) {
+        char c = 0;
+        fread(&c, 1, 1, file);
+
+        shader_buffer[offset++] = c;
+        if (c == '\n') {
+            offset += sprintf(shader_buffer + offset, "%3d: ", line++);
+        } 
+    }
+    printf("\x1B[91mFailed to compile vertex stage in shader %s.\n%s\x1B[0", file_path, shader_buffer);
+    fclose(file);
 }
 
 b8 compile_shader(const char* file_path, const char* file_name, const char* output_path) {
@@ -412,8 +451,9 @@ b8 compile_shader(const char* file_path, const char* file_name, const char* outp
     u32 file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    char* text = malloc(file_size);
+    char* text = malloc(file_size + 1);
     fread(text, file_size, 1, file);
+    text[file_size] = 0;
 
     // Parse to tokens
     u32 token_count = 0;
@@ -428,17 +468,16 @@ b8 compile_shader(const char* file_path, const char* file_name, const char* outp
 
     // Compile shader stages
     char* vertex_filename = NULL;
-    if (!compile_stage(file_name, tokens, token_count, SHADER_STAGE_VERTEX, &vertex_filename)) {
-        // remove(vertex_filename);
-        printf("Failed to compile vertex stage in shader %s.\n", file_path);
+    char* vertex_temp_filename = NULL;
+    if (!compile_stage(file_name, tokens, token_count, SHADER_STAGE_VERTEX, &vertex_filename, &vertex_temp_filename)) {
+        throw_shader_compile_error(file_path, vertex_temp_filename);
         return false;
     }
 
     char* fragment_filename = NULL;
-    if (!compile_stage(file_name, tokens, token_count, SHADER_STAGE_FRAGMENT, &fragment_filename)) {
-        // remove(vertex_filename);
-        // remove(fragment_filename);
-        printf("Failed to compile fragment stage in shader %s.\n", file_path);
+    char* fragment_temp_filename = NULL;
+    if (!compile_stage(file_name, tokens, token_count, SHADER_STAGE_FRAGMENT, &fragment_filename, &fragment_temp_filename)) {
+        throw_shader_compile_error(file_path, fragment_temp_filename);
         return false;
     }
 
@@ -469,6 +508,16 @@ b8 compile_shader(const char* file_path, const char* file_name, const char* outp
     remove(fragment_filename);
 
     printf("Successfully compile shader '%s'\n", file_name);
+
+    for (u32 i = 0; i < token_count; i++) {
+        free((void*)tokens[i]);
+    }
+    free(tokens);
+    free(text);
+    free(fragment_filename);
+    free(vertex_filename);
+    free(fragment_temp_filename);
+    free(vertex_temp_filename);
 
     return true;
 }

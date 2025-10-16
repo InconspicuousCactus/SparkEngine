@@ -287,24 +287,27 @@ void addr2line(const char *ptr, const char *elf_name, char* output, u32 output_b
 void* 
 create_tracked_allocation(u64 size, memory_tag_t tag, const char* file, u32 line) {
     void* block = pvt_sallocate(size + sizeof(allocation_info_t) + alloc_info_padding, tag);
-
-    // Get backtrace string
-    const u32 buffer_size = 100;
-    void* buffer[100];
-    char** backtrace_strings;
-    u32 backtrace_count = backtrace(buffer, buffer_size);
-    backtrace_strings = backtrace_symbols(buffer, backtrace_count);
-    if (backtrace_strings == NULL) {
-        SERROR("backtrace_symbols failed to get symbols");
-    }
-
     allocation_info_t* info = block;
-    szero_memory(info->backtrace, ALLOCATION_INFO_BACKTRACE_STRING_SIZE);
-    for (u32 i = 0; i < backtrace_count; i++) {
-        string_nconcat(info->backtrace, backtrace_strings[i], ALLOCATION_INFO_BACKTRACE_STRING_SIZE - 1);
-        string_nconcat(info->backtrace, "\n", ALLOCATION_INFO_BACKTRACE_STRING_SIZE - 1);
+
+    const b8 track_callstack = false;
+    if (track_callstack) {
+        // Get backtrace string
+        const u32 buffer_size = 100;
+        void* buffer[100];
+        char** backtrace_strings;
+        u32 backtrace_count = backtrace(buffer, buffer_size);
+        backtrace_strings = backtrace_symbols(buffer, backtrace_count);
+        if (backtrace_strings == NULL) {
+            SERROR("backtrace_symbols failed to get symbols");
+        }
+
+        szero_memory(info->backtrace, ALLOCATION_INFO_BACKTRACE_STRING_SIZE);
+        for (u32 i = 0; i < backtrace_count; i++) {
+            string_nconcat(info->backtrace, backtrace_strings[i], ALLOCATION_INFO_BACKTRACE_STRING_SIZE - 1);
+            string_nconcat(info->backtrace, "\n", ALLOCATION_INFO_BACKTRACE_STRING_SIZE - 1);
+        }
+        free(backtrace_strings);
     }
-    free(backtrace_strings);
 
     info->file = file;
     info->line = line;

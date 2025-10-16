@@ -2,6 +2,7 @@
 #include "Spark/containers/generic/darray_ints.h"
 #include "Spark/containers/unordered_map.h"
 #include "Spark/core/logging.h"
+#include "Spark/core/smemory.h"
 #include "Spark/core/sstring.h"
 #include "Spark/defines.h"
 #include "Spark/memory/linear_allocator.h"
@@ -77,6 +78,8 @@ resource_t resource_loader_get_resource(const char* path, b8 auto_delete) {
 
     u64 file_size = 0;
     filesystem_get_file_size(&file_handle, &file_size);
+    sset_memory(loader_state->resource_buffer.data, 0, loader_state->resource_buffer.count);
+    darray_u8_clear(&loader_state->resource_buffer);
     darray_u8_reserve(&loader_state->resource_buffer, file_size);
     loader_state->resource_buffer.data[0] = 0;
 

@@ -26,9 +26,9 @@ void* block_allocator_allocate(block_allocator_t* allocator) {
     }
 
     block_allocator_block_t* block = allocator->blocks;
-    void* allocation = block  + 1;
+    block_allocator_block_t* allocation = block  + 1;
     allocator->blocks = block->next;
-    szero_memory(block, sizeof(block_allocator_block_t));
+    // szero_memory(block, sizeof(block_allocator_block_t));
 
     return allocation;
 }

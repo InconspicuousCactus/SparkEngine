@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 // Private functions
 void get_scene_index_vertex_size(const struct aiScene* scene, u32* out_vertex_size, u32* out_index_size);
@@ -34,7 +35,16 @@ static u32 written_object_count = 0;
 
 int s3d_convert(const char* source_file, const char* out_file) {
     // Load scene
-    const struct aiScene* scene = aiImportFile(source_file, aiProcess_Triangulate | aiProcess_ImproveCacheLocality | aiProcess_RemoveRedundantMaterials | aiProcess_OptimizeMeshes | aiProcess_OptimizeGraph | aiProcess_FindInstances | aiProcess_JoinIdenticalVertices | aiProcess_GenBoundingBoxes);
+    const struct aiScene* scene = aiImportFile(source_file, 
+            aiProcess_Triangulate | 
+            aiProcess_ImproveCacheLocality | 
+            aiProcess_RemoveRedundantMaterials | 
+            aiProcess_OptimizeMeshes | 
+            aiProcess_OptimizeGraph | 
+            aiProcess_FindInstances | 
+            aiProcess_JoinIdenticalVertices | 
+            aiProcess_FindDegenerates |
+            aiProcess_GenBoundingBoxes);
     if (!scene) {
         printf("Failed to load model file at path '%s'\n", source_file);
         return -1;
@@ -47,8 +57,6 @@ int s3d_convert(const char* source_file, const char* out_file) {
 
     void* vertex_buffer = malloc(vertex_buffer_size);
     void* index_buffer = malloc(index_buffer_size);
-    memset(vertex_buffer, 0xFF, vertex_buffer_size);
-    memset(index_buffer, 0xFF, index_buffer_size);
 
     // Write all objects
     u32 object_count = get_scene_object_count(scene);
@@ -67,7 +75,7 @@ int s3d_convert(const char* source_file, const char* out_file) {
     
     // Write all textures
     u32* texture_offsets = malloc(sizeof(u32) * scene->mNumTextures);
-    s3d_texture_t* textures = malloc(sizeof(u32) * scene->mNumTextures);
+    s3d_texture_t* textures = malloc(sizeof(s3d_texture_t) * scene->mNumTextures);
     for (u32 i = 0, offset = 0; i < scene->mNumTextures; i++) {
         u32 byte_count = 0;
         struct aiTexture* texture = scene->mTextures[i];
@@ -112,6 +120,7 @@ int s3d_convert(const char* source_file, const char* out_file) {
     FILE* file_ptr = fopen(out_file, "wb");
     if (!file_ptr) {
         printf("S3D converter failed to open file '%s'\n", out_file);
+        aiReleaseImport(scene);
         return -1;
     }
 
@@ -154,11 +163,19 @@ int s3d_convert(const char* source_file, const char* out_file) {
     }
     fseek(file_ptr, current_offset, SEEK_SET);
 
-
     // Rewrite header
     fseek(file_ptr, 0, SEEK_SET);
     fwrite(&out_scene, sizeof(s3d_t), 1, file_ptr);                          // Header
     fclose(file_ptr);
+    aiReleaseImport(scene);
+    free(meshes);
+    free(textures);
+    free(texture_offsets);
+    free(materials);
+    free(objects);
+    free(index_buffer);
+    free(vertex_buffer);
+
 
     return 0;
 }
@@ -176,38 +193,8 @@ void get_scene_index_vertex_size(const struct aiScene* scene, u32* out_vertex_si
     *out_index_size = 0;
 
     for (int i = 0; i < scene->mNumMeshes; i++) {
-        u32 vertex_stride = 0;
+        const u32 vertex_stride = sizeof(vertex_3d_t);
         const struct aiMesh* mesh = scene->mMeshes[i];
-        if (mesh->mVertices) {
-            vertex_stride += sizeof(vec3);
-        }
-        if (mesh->mTextureCoords[0]) {
-            vertex_stride += sizeof(vec2);
-        }
-        if (mesh->mTextureCoords[1]) {
-            vertex_stride += sizeof(vec2);
-        }
-        if (mesh->mTextureCoords[2]) {
-            vertex_stride += sizeof(vec2);
-        }
-        if (mesh->mTextureCoords[3]) {
-            vertex_stride += sizeof(vec2);
-        }
-        if (mesh->mNormals) {
-            vertex_stride += sizeof(vec3);
-        }
-        if (mesh->mColors[0]) {
-            vertex_stride += sizeof(vec4);
-        }
-        if (mesh->mColors[1]) {
-            vertex_stride += sizeof(vec4);
-        }
-        if (mesh->mColors[2]) {
-            vertex_stride += sizeof(vec4);
-        }
-        if (mesh->mColors[3]) {
-            vertex_stride += sizeof(vec4);
-        }
 
         *out_vertex_size += vertex_stride * mesh->mNumVertices;
 
@@ -233,6 +220,7 @@ s3d_mesh_t write_s3d_mesh(
         u64* vertex_offset,
         void* index_buffer,
         u64* index_offset) {
+    vertex_buffer += *vertex_offset;
     // Initialize s3d_mesh
     s3d_mesh_t out_mesh = {
         .index_offset = *index_offset,
@@ -242,8 +230,8 @@ s3d_mesh_t write_s3d_mesh(
     };
 
     // Calculate bounds
-    vec3 bounds_min = { {mesh->mAABB.mMin.x, mesh->mAABB.mMin.y, mesh->mAABB.mMin.z} };
-    vec3 bounds_max = { {mesh->mAABB.mMax.x, mesh->mAABB.mMax.y, mesh->mAABB.mMax.z} };
+    vec3 bounds_min = {mesh->mAABB.mMin.x, mesh->mAABB.mMin.y, mesh->mAABB.mMin.z};
+    vec3 bounds_max = {mesh->mAABB.mMax.x, mesh->mAABB.mMax.y, mesh->mAABB.mMax.z};
     vec3 bounds_center = vec3_mul_scalar(vec3_add(bounds_min, bounds_max), .5f);
     vec3 bounds_extents = vec3_sub(bounds_max, bounds_center);
     out_mesh.bounds = 
@@ -253,10 +241,15 @@ s3d_mesh_t write_s3d_mesh(
         };
 
     // Get vertex attributes and stride
-    u16 vertex_stride = sizeof(vec3) * 2 + sizeof(vec2);
+    u16 vertex_stride = sizeof(vertex_3d_t);
+    memset(vertex_buffer, 0, sizeof(vertex_3d_t));
+
     if (mesh->mVertices) {
         for (int i = 0; i < mesh->mNumVertices; i++) {
-            vertex_buffer[i].position = *(vec3*)&mesh->mVertices[i];
+            struct aiVector3D pos = mesh->mVertices[i];
+            vertex_buffer[i].position.x = pos.x;
+            vertex_buffer[i].position.y = pos.y;
+            vertex_buffer[i].position.z = pos.z;
         }
     }
     if (mesh->mNormals) {
@@ -269,11 +262,16 @@ s3d_mesh_t write_s3d_mesh(
             vertex_buffer[i].uv = *(vec2*)&mesh->mTextureCoords[0][i];
         }
     }
+    *vertex_offset += mesh->mNumVertices;
 
     // Copy indices
     b8 is_short_index = false;
 
     for (int i = 0; i < mesh->mNumFaces; i++) {
+        if (mesh->mFaces[i].mNumIndices != 3) {
+            continue;
+        }
+        assert(mesh->mFaces[i].mNumIndices == 3);
         for (int f = 0; f < mesh->mFaces[i].mNumIndices; f++) {
             u32 index = mesh->mFaces[i].mIndices[f];
             if (is_short_index) {
@@ -286,6 +284,7 @@ s3d_mesh_t write_s3d_mesh(
             }
         }
     }
+
 
     // Pad indices and vertices to nearest 0x10 alignment
     // if (*vertex_offset % 0x10 != 0) {

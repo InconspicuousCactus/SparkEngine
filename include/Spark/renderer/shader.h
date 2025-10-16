@@ -40,7 +40,7 @@ typedef struct shader {
     u32 internal_index;
     shader_resource_layout_t layout[SHADER_MAX_RESOURCES];
     vertex_attributes_t attributes[SHADER_MAX_ATTRIBUTES];
-    builtin_renderpass_t type;
+    builtin_renderpass_t renderpass;
     u8 resource_count;
     u8 attribute_count;
 #ifdef SPARK_DEBUG

@@ -70,12 +70,13 @@ typedef struct vulkan_context {
     VkSemaphore render_complete_semaphores[SWAPCHAIN_MAX_IMAGE_COUNT];
     VkFence in_flight_fences[SWAPCHAIN_MAX_IMAGE_COUNT];
 
-    vulkan_renderpass_t renderpasses[BUILTIN_RENDERPASS_MAX];
+    vulkan_renderpass_t renderpasses[BUILTIN_RENDERPASS_ENUM_MAX];
 
     // Descriptor pools
     VkDescriptorPool descriptor_pool;
 
     // Buffers
+    vulkan_buffer_t uniform_buffer_skybox;
     vulkan_buffer_t uniform_buffer_3d;
     vulkan_buffer_t uniform_buffer_ui;
     vulkan_buffer_t instance_buffer;

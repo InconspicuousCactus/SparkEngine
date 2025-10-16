@@ -1,17 +1,16 @@
 #include "Spark/renderer/renderer_frontend.h"
-#include "Spark/containers/generic/darray_ints.h"
-#include "Spark/core/smemory.h"
 #include "Spark/defines.h"
-#include "Spark/ecs/components/entity_parent.h"
-#include "Spark/ecs/components/entity_child.h"
 #include "Spark/ecs/ecs_world.h"
 #include "Spark/ecs/entity.h"
-#include "Spark/platform/filesystem.h"
+#include "Spark/math/quat.h"
+#include "Spark/math/vec3.h"
 #include "Spark/renderer/renderer_types.h"
 #include "Spark/renderer/texture.h"
 #include "Spark/renderer/vulkan/vulkan_backend.h"
-#include "Spark/types/s3d.h"
-#include "Spark/types/transforms.h"
+#include "Spark/resources/resource_loader.h"
+#include "Spark/resources/resource_types.h"
+#include "Spark/resources/resource_functions.h"
+
 struct static_mesh_data;
 struct platform_state;
 
@@ -25,15 +24,17 @@ typedef struct render_system_state {
     vec3 camera_position;
     f32 near_clip;
     f32 far_clip;
+    entity_t skybox;
+    material_t* skybox_material;
 } render_system_state_t;
 
-static render_system_state_t* state_ptr = NULL;
+static render_system_state_t* state = NULL;
 u64 renderer_get_memory_requirements() {
     return sizeof(render_system_state_t);
 }
 
 b8 renderer_initialize(const char* application_name, struct platform_state* plat_state, linear_allocator_t* allocator) {
-    state_ptr = linear_allocator_allocate(allocator, sizeof(render_system_state_t));
+    state = linear_allocator_allocate(allocator, sizeof(render_system_state_t));
 
     // Choose renderer type
 #ifndef SPARK_FORCE_VULKAN
@@ -67,6 +68,27 @@ b8 renderer_initialize(const char* application_name, struct platform_state* plat
     vulkan_renderer_initialize(application_name, plat_state, allocator);
 #endif
 
+    // Setup skybox
+    // const static u32 max_vertices = 256 * 6;
+    // const static u32 max_indices = 1024 * 6;
+    // vec3 vertices[max_vertices] = {};
+    // u32 indices[max_indices] = {};
+    // u32 index_count = 0;
+    // u32 vertex_count = 0;
+    // create_sphere(6, max_vertices, max_indices, vertices, indices, &vertex_count, &index_count);
+    // mesh_t skybox_mesh = renderer_create_mesh(vertices, vertex_count, sizeof(vec3), indices, index_count, sizeof(u32));
+
+    // ecs_world_t* world = ecs_world_get();
+    // state->skybox = entity_create(world);
+    // const static aabb_t skybox_aabb = {
+    //     .center = { },
+    //     .extents = { .x = 1, .y = 1, .z = 1 },
+    // };
+    // entity_add_transforms(world, state->skybox, vec3_zero(), vec3_one(), quat_identity());
+    // // ENTITY_SET_COMPONENT(world, state->skybox, local_to_world_t, {});
+    // ENTITY_SET_COMPONENT(world, state->skybox, mesh_t, skybox_mesh);
+    // ENTITY_SET_COMPONENT(world, state->skybox, aabb_t, skybox_aabb);
+
     return true;
 }
 
@@ -90,7 +112,7 @@ b8 renderer_draw_frame(render_packet_t* packet) {
     return true;
 }
 
-mesh_t renderer_create_mesh(void* vertices, u32 vertex_count, u32 vertex_stride, void* indices, u32 index_count, u32 index_stride) {
+mesh_t renderer_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_stride, const void* indices, u32 index_count, u32 index_stride) {
     if (index_count <= 0 || vertex_count <= 0) {
         return (mesh_t) {
             .internal_index = INVALID_ID,
@@ -158,3 +180,11 @@ material_t renderer_create_material(material_config_t* config) {
     return state_ptr->backend.create_material(config);
 }
 #endif
+
+void renderer_set_skybox(material_t* material) {
+    ecs_world_t* world = ecs_world_get();
+    resource_t skybox_res = resource_loader_get_resource("assets/resources/models/skybox", false);
+    state->skybox = resource_instance_model(&skybox_res, 0, &material);
+    state->skybox_material = material;
+    ENTITY_SET_COMPONENT(world, state->skybox, material_t, *state->skybox_material);
+}

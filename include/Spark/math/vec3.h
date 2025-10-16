@@ -24,7 +24,8 @@ SINLINE vec4 vec3_to_vec4(vec3 vector, f32 w) {
 }
 
 SINLINE vec3 vec3_zero() {
-    vec3 out = { };
+    vec3 out = {
+    };
     return out;
 }
 
@@ -92,23 +93,23 @@ SINLINE vec3 vec3_back() {
 }
 
 SINLINE vec3 vec3_add(vec3 a, vec3 b) { 
-    return (vec3){{a.x + b.x, a.y + b.y, a.z + b.z}};
+    return (vec3){a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
 SINLINE vec3 vec3_sub(vec3 a, vec3 b) { 
-    return (vec3){{a.x - b.x, a.y - b.y, a.z - b.z}};
+    return (vec3){a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
 SINLINE vec3 vec3_mul(vec3 a, vec3 b) { 
-    return (vec3){{a.x * b.x, a.y * b.y, a.z * b.z}};
+    return (vec3){a.x * b.x, a.y * b.y, a.z * b.z};
 }
 
 SINLINE vec3 vec3_div(vec3 a, vec3 b) { 
-    return (vec3){{a.x / b.x, a.y / b.y, a.z / b.z}};
+    return (vec3){a.x / b.x, a.y / b.y, a.z / b.z};
 }
 
 SINLINE vec3 vec3_mul_scalar(vec3 vector, f32 scalar) { 
-    return (vec3){{vector.x * scalar, vector.y * scalar, vector.z * scalar}};
+    return (vec3){vector.x * scalar, vector.y * scalar, vector.z * scalar};
 }
 
 SINLINE f32 vec3_length_squared(vec3 vector) {

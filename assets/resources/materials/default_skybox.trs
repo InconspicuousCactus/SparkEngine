@@ -1,0 +1,4 @@
+#resource material
+name:default_skybox
+shader_path:assets/shaders/default_skybox
+texture:assets/resources/textures/skybox,0,1

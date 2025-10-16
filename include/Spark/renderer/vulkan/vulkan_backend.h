@@ -12,7 +12,7 @@ b8 vulkan_renderer_begin_frame();
 b8 vulkan_renderer_draw_frame(render_packet_t* packet);
 b8 vulkan_renderer_end_frame();
 
-mesh_t     vulkan_create_mesh(void* vertices, u32 vertex_count, u32 vertex_size, void* indices, u32 index_count, u32 index_stride);
+mesh_t     vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_size, const void* indices, u32 index_count, u32 index_stride);
 shader_t   vulkan_create_shader(shader_config_t* config);
 material_t vulkan_create_material(material_config_t* config);
 

@@ -49,33 +49,37 @@ SINLINE vec4 vec4_one() {
 
 SINLINE vec4 vec4_add(vec4 a, vec4 b) { 
     vec4 result = {};
-    for (u32 i = 0; i < 4; i++) {
-        result.values[i] = a.values[i] + b.values[i];
-    }
+    result.x = a.x + b.x;
+    result.y = a.y + b.y;
+    result.z = a.z + b.z;
+    result.w = a.w + b.w;
     return result;
 }
 
 SINLINE vec4 vec4_sub(vec4 a, vec4 b) { 
     vec4 result = {};
-    for (u32 i = 0; i < 4; i++) {
-        result.values[i] = a.values[i] - b.values[i];
-    }
+    result.x = a.x - b.x;
+    result.y = a.y - b.y;
+    result.z = a.z - b.z;
+    result.w = a.w - b.w;
     return result;
 }
 
 SINLINE vec4 vec4_mul(vec4 a, vec4 b) { 
     vec4 result = {};
-    for (u32 i = 0; i < 4; i++) {
-        result.values[i] = a.values[i] * b.values[i];
-    }
+    result.x = a.x * b.x;
+    result.y = a.y * b.y;
+    result.z = a.z * b.z;
+    result.w = a.w * b.w;
     return result;
 }
 
 SINLINE vec4 vec4_div(vec4 a, vec4 b) { 
     vec4 result = {};
-    for (u32 i = 0; i < 4; i++) {
-        result.values[i] = a.values[i] / b.values[i];
-    }
+    result.x = a.x / b.x;
+    result.y = a.y / b.y;
+    result.z = a.z / b.z;
+    result.w = a.w / b.w;
     return result;
 }
 

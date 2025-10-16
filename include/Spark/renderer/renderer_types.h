@@ -29,13 +29,15 @@ typedef struct renderpass_geometry {
 typedef struct render_packet {
     f32 delta_time;
 
-    mat4 view_matrix;
+    vec3 view_pos;
+    quat view_rotation;
+    // mat4 view_matrix;
     mat4 projection_matrix;
 
     /**
      * @brief Indexed via builtin_renderpass enum
      */
-    renderpass_geometry_t renderpass_geometry[BUILTIN_RENDERPASS_MAX];
+    renderpass_geometry_t renderpass_geometry[BUILTIN_RENDERPASS_ENUM_MAX];
 } render_packet_t;
 
 typedef struct renderer_backend {

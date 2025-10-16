@@ -6,7 +6,7 @@ typedef enum builtin_renderpass {
     BUILTIN_RENDERPASS_SKYBOX,
     BUILTIN_RENDERPASS_WORLD,
     BUILTIN_RENDERPASS_UI,
-    BUILTIN_RENDERPASS_MAX,
+    BUILTIN_RENDERPASS_ENUM_MAX,
 } builtin_renderpass_t;
 
 typedef struct renderpass_skybox_data {

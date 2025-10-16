@@ -226,7 +226,6 @@ application_run() {
             for (u32 i = 0; i < frame_time_count; i++) {
                 total_frame_time += frame_times[i];
             }
-            SDEBUG("FPS: %.03f", 1.0 / (total_frame_time / frame_time_count));
         }
 
         for (int i = frame_time_count - 1; i > 0; i--) {
@@ -269,10 +268,10 @@ application_run() {
     physics_backend_shutdown();
 
     linear_allocator_destroy(&app_state->systems_allocator);
-    sfree(app_state->game_inst->application_state, sizeof(application_state_t), MEMORY_TAG_GAME);
 
     platform_shutdown(&app_state->platform);
     shutdown_logging(app_state->logging_system_state);
+    sfree(app_state->game_inst->application_state, sizeof(application_state_t), MEMORY_TAG_GAME);
     return true;
 }
 

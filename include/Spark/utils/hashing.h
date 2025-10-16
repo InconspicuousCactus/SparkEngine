@@ -1,4 +1,6 @@
 #pragma once
+#include "Spark/core/logging.h"
+#include "Spark/core/sstring.h"
 #include "Spark/defines.h"
 #include "Spark/math/math_types.h"
 
@@ -61,9 +63,15 @@ SINLINE hash_t hash_vec4i(vec4i key) {
 }
 
 SINLINE b8 string_compare(const char* a, const char* b) {
+    SDEBUG("String compare: %p - %p", a, b);
+    SDEBUG("String compare: %s - %s", a, b);
+    return string_equal(a, b);
+    if (!a || !b) {
+        return false;
+    }
     char ca = a[0];
     char cb = b[0];
-    while (ca != 0) {
+    while (ca != 0 && cb != 0) {
         if (ca != cb) {
             return false;
         }

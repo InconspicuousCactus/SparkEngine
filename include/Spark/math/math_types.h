@@ -1,10 +1,8 @@
 #pragma once
 #include "Spark/defines.h"
 
-typedef union vec2 {
-    f32 values[2];
-    struct { f32 x, y; };
-    struct { f32 u, v; };
+typedef struct vec2 {
+    f32 x, y;
 } vec2;
 
 typedef struct vec2i {
@@ -12,9 +10,10 @@ typedef struct vec2i {
     s32 y;
 } vec2i;
 
-typedef union vec3 {
-    f32 values[3];
-    struct { f32 x, y, z; };
+typedef struct vec3 {
+    f32 x;
+    f32 y;
+    f32 z;
 } vec3;
 
 typedef struct vec3i {
@@ -23,11 +22,11 @@ typedef struct vec3i {
     s32 z;
 } vec3i;
 
-typedef union vec4 {
-#ifdef SUSE_SIMD
-    __m128 data;
-#endif
-    struct { f32 x, y, z, w; };
+typedef struct vec4 {
+// #ifdef SUSE_SIMD
+//     __m128 data;
+// #endif
+    f32 x, y, z, w;
 } vec4;
 
 typedef struct vec4i {

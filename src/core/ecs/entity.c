@@ -215,7 +215,7 @@ void entity_add_transforms(ecs_world_t* world, entity_t entity, vec3 position, v
     ENTITY_SET_COMPONENT(world, entity, translation_t, tr);
     ENTITY_SET_COMPONENT(world, entity, scale_t, sc);
     ENTITY_SET_COMPONENT(world, entity, rotation_t, rot);
-    ENTITY_SET_COMPONENT(world, entity, local_to_world_t, { mat4_identity() });
+    ENTITY_SET_COMPONENT(world, entity, local_to_world_t, { mat4_translation(position) });
     ENTITY_SET_COMPONENT(world, entity, dirty_transform_t, { true });
 }
 
