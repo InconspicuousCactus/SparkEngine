@@ -142,23 +142,18 @@ SINLINE quat quat_from_axis_angle(vec3 axis, f32 angle, b8 normalize) {
  * @return 
  */
 SINLINE quat quat_from_euler(vec3 angle, b8 normalize) {
-    f32 c1 = scos(angle.y / 2);
-    f32 c2 = scos(angle.x / 2);
-    f32 c3 = scos(angle.z / 2);
-    f32 s1 = ssin(angle.y / 2);
-    f32 s2 = ssin(angle.x / 2);
-    f32 s3 = ssin(angle.z / 2);
-    
-    f32 w = ssqrt(1.0f + c1 * c2 + c1 * c3 - s1 * s2 * s3 + c2 * c3) / 2;
-    f32 x = (c2 * s3 + c1 * s3 + s1 * s2 * c3) / (4.0f * w);
-    f32 y = (s1 * c2 + s1 * c3 + c1 * s2 * s3) / (4.0f * w);
-    f32 z = (-s1 * s3 + c1 * s2 * c3 + s2) / (4.0f * w);
+    f32 cx = scos(angle.x / 1);
+    f32 cy = scos(angle.y / 1);
+    f32 cz = scos(angle.z / 1);
+    f32 sx = ssin(angle.x / 1);
+    f32 sy = ssin(angle.y / 1);
+    f32 sz = ssin(angle.z / 1);
 
     quat out = {
-        .x = w,
-        .y = x,
-        .z = y,
-        .w = z
+        .w = cx * cy * cz + sx * sy * sz,
+        .x = sx * cy * cz - cx * sy * sz,
+        .y = cx * sy * cz + sx * cy * sz,
+        .z = cx * cy * sz - sx * sy * cz,
     };
 
     if (normalize) {
