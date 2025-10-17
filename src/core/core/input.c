@@ -119,12 +119,12 @@ input_process_mouse_wheel(s32 delta) {
 b8 
 input_is_key_down(keycode_t key) {
     SASSERT(is_initialized, "Input system not initialized");
-    return state.keyboard_current.keys[key] == true;
+    return state.keyboard_current.keys[key] == true && state.keyboard_previous.keys[key] == false;
 }
 b8 
 input_is_key_up(keycode_t key) {
     SASSERT(is_initialized, "Input system not initialized");
-    return state.keyboard_current.keys[key] == false;
+    return state.keyboard_current.keys[key] == false && state.keyboard_previous.keys[key] == true;
 }
 b8 
 input_was_key_down(keycode_t key) {

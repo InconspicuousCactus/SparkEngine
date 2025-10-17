@@ -10,7 +10,6 @@ struct vulkan_command_buffer;
 #define VULKAN_MATERIAL_MAX_SETS 6
 typedef struct vulkan_material {
     VkDescriptorSet sets[VULKAN_MATERIAL_MAX_SETS];
-    u8 set_indices[VULKAN_MATERIAL_MAX_SETS];
     u8 set_count;
     u8 first_set;
 } vulkan_material_t;

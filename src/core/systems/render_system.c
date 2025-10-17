@@ -14,7 +14,9 @@
 #include "Spark/types/transforms.h"
 
 // Private functions
-void render_cameras(ecs_iterator_t* iterator);
+void render_camera(vec3 camera_position, quat camera_rotation, local_to_world_t local, mat4 view_matrix);
+void render_orthographic_cameras(ecs_iterator_t* iterator);
+void render_perspective_cameras(ecs_iterator_t* iterator);
 void render_entities(ecs_iterator_t* iterator);
 
 // Private Types
@@ -38,6 +40,8 @@ void render_system_initialize(ecs_world_t* world) {
     for (u32 i = 0; i < BUILTIN_RENDERPASS_ENUM_MAX; i++) {
         darray_geometry_render_data_create(300, &render_state.render_data[i]);
     }
+
+    // Render Entities
     const ecs_component_id render_entities_components[] = { 
         ECS_COMPONENT_ID(mesh_t), 
         ECS_COMPONENT_ID(local_to_world_t), 
@@ -52,6 +56,7 @@ void render_system_initialize(ecs_world_t* world) {
 
     render_state.render_entities_query = ecs_query_create(world, &render_entities_create_info);
 
+    // Render Perspective Cameras
     const ecs_component_id render_cameras_components[] = {
         ECS_COMPONENT_ID(camera_t), 
         ECS_COMPONENT_ID(local_to_world_t),
@@ -64,7 +69,22 @@ void render_system_initialize(ecs_world_t* world) {
         .components = render_cameras_components,
     };
 
-    ecs_system_create(world, ECS_PHASE_RENDER, &render_cameras_create_info, render_cameras, "render_cameras");
+    ecs_system_create(world, ECS_PHASE_RENDER, &render_cameras_create_info, render_perspective_cameras, "render_cameras");
+
+    // Render Orthographic Cameras
+    const ecs_component_id render_orthographic_cameras_components[] = {
+        ECS_COMPONENT_ID(orthographic_camera_t), 
+        ECS_COMPONENT_ID(local_to_world_t),
+        ECS_COMPONENT_ID(translation_t),
+        ECS_COMPONENT_ID(rotation_t),
+    };
+
+    const ecs_query_create_info_t render_orth_cameras_create_info = {
+        .component_count = 4,
+        .components = render_orthographic_cameras_components,
+    };
+
+    ecs_system_create(world, ECS_PHASE_RENDER, &render_orth_cameras_create_info, render_orthographic_cameras, "render_orthographic_cameras");
 }
 
 void render_system_shutdown() {
@@ -111,7 +131,73 @@ b32 sort_geometry(const void* a, const void* b) {
     return 0;
 }
 
-void render_cameras(ecs_iterator_t* iterator) {
+void render_camera(vec3 camera_position, quat camera_rotation, local_to_world_t local, mat4 view_matrix) {
+    render_packet_t packet = {
+        .delta_time = 0,
+        .view_pos = camera_position,
+        .view_rotation = camera_rotation,
+        .projection_matrix = view_matrix,
+    };
+
+    // vec3 camera_up = mat4_up(local.value);
+    // vec3 camera_right = mat4_right(local.value);
+    vec3 camera_forward = mat4_forward(local.value);
+    vec3 camera_pos = {
+        local.value.data[12],
+        local.value.data[13],
+        local.value.data[14],
+    };
+
+    // render_state.view_frustum = frustum_create(camera_pos, camera_up, camera_right, camera_forward, screen_size.x / screen_size.y, cameras[i].fov, cameras[i].near_clip, cameras[i].far_clip);
+
+    render_state.camera_pos = camera_pos;
+    render_state.camera_forward = camera_forward;
+
+    for (u32 i = 0; i < BUILTIN_RENDERPASS_ENUM_MAX; i++) {
+        darray_geometry_render_data_clear(&render_state.render_data[i]);
+    }
+    ecs_query_iterate(render_state.render_entities_query, render_entities);
+
+    for (u32 i = 0; i < BUILTIN_RENDERPASS_ENUM_MAX; i++) {
+        packet.renderpass_geometry[i].geometry_count = render_state.render_data[i].count;
+        packet.renderpass_geometry[i].geometry = render_state.render_data[i].data;
+    }
+
+    // qsort(packet.geometries, packet.geometry_count, sizeof(geometry_render_data_t), sort_geometry);
+
+    // for (u32 e = 0; e < packet.geometry_count; e++) {
+    //     f32 distance = vec3_distance_sqr(camera_pos, packet.geometries[e].position);
+    //     SDEBUG("Rendering entity %d at distance %f", e, distance);
+    // }
+
+    if (packet.renderpass_geometry[BUILTIN_RENDERPASS_WORLD].geometry_count > 0) {
+        renderer_draw_frame(&packet);
+    }
+}
+
+void render_orthographic_cameras(ecs_iterator_t* iterator) {
+    orthographic_camera_t* cameras = ECS_ITERATOR_GET_COMPONENTS(iterator, 0);
+    local_to_world_t* locals = ECS_ITERATOR_GET_COMPONENTS(iterator, 1);
+    translation_t* translations = ECS_ITERATOR_GET_COMPONENTS(iterator, 2);
+    rotation_t* rotations = ECS_ITERATOR_GET_COMPONENTS(iterator, 3);
+
+    // Render per-camera
+    // vec2 screen_size = renderer_get_screen_size();
+    SASSERT(iterator->entity_count <= 1, "Cannot render multiple cameras.");
+    vec2 screen_size = renderer_get_screen_size();
+    f32 horizontal_ratio = screen_size.x / screen_size.y;
+    for (u32 i = 0; i < iterator->entity_count; i++) {
+        f32 dst = cameras[i].distance;
+        mat4 orthographic = mat4_orthographic(-dst * horizontal_ratio, dst * horizontal_ratio, -dst, dst, cameras[i].near_clip, cameras[i].far_clip);
+        render_camera(
+                translations[i].value, 
+                rotations[i].value, 
+                locals[i], 
+                orthographic);
+    }
+}
+
+void render_perspective_cameras(ecs_iterator_t* iterator) {
     camera_t* cameras = ECS_ITERATOR_GET_COMPONENTS(iterator, 0);
     local_to_world_t* locals = ECS_ITERATOR_GET_COMPONENTS(iterator, 1);
     translation_t* translations = ECS_ITERATOR_GET_COMPONENTS(iterator, 2);
@@ -119,48 +205,13 @@ void render_cameras(ecs_iterator_t* iterator) {
 
     // Render per-camera
     vec2 screen_size = renderer_get_screen_size();
+    SASSERT(iterator->entity_count <= 1, "Cannot render multiple cameras.");
     for (u32 i = 0; i < iterator->entity_count; i++) {
-        render_packet_t packet = {
-            .delta_time = 0,
-            .view_pos = translations[i].value,
-            .view_rotation = rotations[i].value,
-            .projection_matrix = mat4_projection_matrix(cameras[i].fov, cameras[i].far_clip, cameras[i].near_clip, screen_size.x, screen_size.y),
-        };
-
-        vec3 camera_up = mat4_up(locals[i].value);
-        vec3 camera_right = mat4_right(locals[i].value);
-        vec3 camera_forward = mat4_forward(locals[i].value);
-        vec3 camera_pos = {
-            locals[i].value.data[12],
-            locals[i].value.data[13],
-            locals[i].value.data[14],
-        };
-
-        render_state.view_frustum = frustum_create(camera_pos, camera_up, camera_right, camera_forward, screen_size.x / screen_size.y, cameras[i].fov, cameras[i].near_clip, cameras[i].far_clip);
-
-        render_state.camera_pos = camera_pos;
-        render_state.camera_forward = camera_forward;
-
-        for (u32 i = 0; i < BUILTIN_RENDERPASS_ENUM_MAX; i++) {
-            darray_geometry_render_data_clear(&render_state.render_data[i]);
-        }
-        ecs_query_iterate(render_state.render_entities_query, render_entities);
-
-        for (u32 i = 0; i < BUILTIN_RENDERPASS_ENUM_MAX; i++) {
-            packet.renderpass_geometry[i].geometry_count = render_state.render_data[i].count;
-            packet.renderpass_geometry[i].geometry = render_state.render_data[i].data;
-        }
-
-        // qsort(packet.geometries, packet.geometry_count, sizeof(geometry_render_data_t), sort_geometry);
-
-        // for (u32 e = 0; e < packet.geometry_count; e++) {
-        //     f32 distance = vec3_distance_sqr(camera_pos, packet.geometries[e].position);
-        //     SDEBUG("Rendering entity %d at distance %f", e, distance);
-        // }
-
-        if (packet.renderpass_geometry[BUILTIN_RENDERPASS_WORLD].geometry_count > 0) {
-            renderer_draw_frame(&packet);
-        }
+        render_camera(
+                translations[i].value, 
+                rotations[i].value, 
+                locals[i], 
+                mat4_projection_matrix(cameras[i].fov, cameras[i].far_clip, cameras[i].near_clip, screen_size.x, screen_size.y));
     }
 }
 

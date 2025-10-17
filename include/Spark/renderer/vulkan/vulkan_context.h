@@ -2,6 +2,7 @@
 
 #include "Spark/math/mat4.h"
 #include "Spark/math/math_types.h"
+#include "Spark/memory/block_allocator.h"
 #include "Spark/renderer/renderer_types.h"
 #include "Spark/renderer/vulkan/vulkan_buffer.h"
 #include "Spark/renderer/vulkan/vulkan_command_buffer.h"
@@ -93,6 +94,8 @@ typedef struct vulkan_context {
 
     u64 text_buffer_size;
     const char* shader_text_buffer;
+
+    block_allocator_t shader_buffer_allocator;
 
     // Data
     vulkan_image_t    default_texture;

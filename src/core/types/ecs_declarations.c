@@ -12,6 +12,7 @@
 
 // Rendering
 ECS_COMPONENT_DECLARE(camera_t);
+ECS_COMPONENT_DECLARE(orthographic_camera_t);
 ECS_COMPONENT_DECLARE(mesh_t);
 ECS_COMPONENT_DECLARE(material_t);
 
@@ -39,6 +40,7 @@ ECS_COMPONENT_DECLARE(velocity_t);
 void ecs_register_types(ecs_world_t* world) {
     // Rendering
     ECS_COMPONENT_DEFINE(world, camera_t);
+    ECS_COMPONENT_DEFINE(world, orthographic_camera_t);
     ECS_COMPONENT_DEFINE(world, mesh_t);
     ECS_COMPONENT_DEFINE(world, material_t);
 

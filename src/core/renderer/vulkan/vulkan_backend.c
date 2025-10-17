@@ -5,6 +5,7 @@
 #include "Spark/defines.h"
 #include "Spark/math/mat4.h"
 #include "Spark/math/quat.h"
+#include "Spark/memory/block_allocator.h"
 #include "Spark/renderer/material.h"
 #include "Spark/renderer/mesh.h"
 #include "Spark/renderer/renderer_types.h"
@@ -169,6 +170,9 @@ b8 vulkan_renderer_initialize(const char* application_name, struct platform_stat
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
             &context->default_texture);
 
+    // Resource allocators
+    block_allocator_create(1024, sizeof(vulkan_buffer_t), &context->shader_buffer_allocator);
+
     resource_t default_shader_res = resource_loader_get_resource("assets/shaders/default", true);
     shader_t* shader = resource_get_shader(&default_shader_res);
     context->default_shader = context->shaders.data[shader->internal_index];
@@ -184,6 +188,14 @@ b8 vulkan_renderer_shutdown() {
     vkDeviceWaitIdle(context->logical_device);
 
     SINFO("Shutting down vulkan renderer");
+
+    block_allocator_zero_unused_blocks(&context->shader_buffer_allocator);
+    for (u32 i = 0; i < context->shader_buffer_allocator.block_count; i++) {
+        vulkan_buffer_t* buffer = (vulkan_buffer_t*)context->shader_buffer_allocator.buffer + i;
+        if (buffer->handle) {
+            vulkan_buffer_destroy(context, buffer);
+        }
+    }
 
     for (u32 i = 0; i < context->shaders.count; i++) {
         vulkan_shader_destroy(context, &context->shaders.data[i]);
@@ -238,6 +250,10 @@ b8 vulkan_renderer_shutdown() {
 
     vkDestroySurfaceKHR(context->instance, context->surface, context->allocator);
 
+    // Resource Allocators
+    block_allocator_destroy(&context->shader_buffer_allocator);
+
+
 #ifdef SPARK_DEBUG
     PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessenger = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkDestroyDebugUtilsMessengerEXT");
     SASSERT(vkDestroyDebugUtilsMessenger, "vkDestroyDebugUtilsMessenger not found. Cannot destroy.");
@@ -252,7 +268,7 @@ b8 vulkan_renderer_begin_frame() {
     vkWaitForFences(context->logical_device, 1, &context->in_flight_fences[context->current_frame], VK_TRUE, UINT64_MAX);
     vkResetFences(context->logical_device, 1, &context->in_flight_fences[context->current_frame]);
 
-    // vkQueueWaitIdle(context->graphics_queue.handle);
+    vkQueueWaitIdle(context->graphics_queue.handle);
     vkAcquireNextImageKHR(context->logical_device, context->swapchain.handle, UINT64_MAX, context->present_complete_semaphores[context->current_frame], NULL, &context->image_index);
 
     vulkan_command_buffer_t* command_buffer = &context->command_buffers[context->image_index];
@@ -678,6 +694,7 @@ material_t vulkan_create_material(material_config_t* config) {
         if (storage_count > 0) {
             unique_set_count++;
         }
+
         SASSERT(unique_set_count <= 1, "Vulkan Material cannot create two sets with different types of data.");
         if (unique_set_count <= 0) {
             continue;
@@ -734,6 +751,16 @@ material_t vulkan_create_material(material_config_t* config) {
                 SERROR("Cannot use undefined shader resource.");
                 break;
             case SHADER_RESOURCE_SOTRAGE_BUFFER:
+                if (config->resources[i].value == NULL) {
+                    vulkan_buffer_t* buffer = block_allocator_allocate(&context->shader_buffer_allocator);
+                    vulkan_buffer_create(context, 
+                            4096,
+                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
+                            &context->graphics_queue, 
+                            buffer);
+                    config->resources[i].value = buffer;
+                }
                 vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material.sets[set], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &buffer_info[i], &descriptor_writes[i]);
                 break;
             case SHADER_RESOURCE_UNIFORM_BUFFER:

@@ -85,9 +85,10 @@ SINLINE mat4 mat4_orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 nea
     out_matrix.data[5] = -2.0f * bt;
     out_matrix.data[10] = 2.0f * nf;
 
-    out_matrix.data[12] = (left + right) * lr;
-    out_matrix.data[13] = (top + bottom) * bt;
-    out_matrix.data[14] = (far_clip + near_clip) * nf;
+    out_matrix.data[3] = (left + right) * lr;
+    out_matrix.data[7] = (top + bottom) * bt;
+    out_matrix.data[11] = (far_clip + near_clip) * nf;
+    out_matrix.data[15] = 1;
     return out_matrix;
 }
 

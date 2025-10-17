@@ -77,6 +77,22 @@ resource_t material_loader_load_text_resouce(const char* text, u32 length, b8 au
             config.resources[resource_index].binding = binding;
             config.resources[resource_index].set = set;
             config.resources[resource_index].value = texture;
+        } else if (string_equal(args[0], "storage_buffer")) {
+            SASSERT(arg_count == 3, "Cannot load material buffer: Invalid format, expected 3 args. Format: 'texture:binding,set'");
+            u32 resource_index = config.resource_count++;
+            SASSERT(resource_index < SHADER_MAX_RESOURCES, "Cannot add more than %d resources from shader resource.", SHADER_MAX_RESOURCES);
+
+            // Get texture
+            u32 binding = 0;
+            u32 set = 0;
+
+            string_to_u32(args[1], &binding);
+            string_to_u32(args[2], &set);
+            
+            config.resources[resource_index].type = SHADER_RESOURCE_SOTRAGE_BUFFER;
+            config.resources[resource_index].binding = binding;
+            config.resources[resource_index].set = set;
+            // config.resources[resource_index].value = texture;
         } else {
             SWARN("Failed to get shader resource key: '%s'", args[0]);
         }
