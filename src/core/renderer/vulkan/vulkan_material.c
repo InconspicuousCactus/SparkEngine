@@ -1,5 +1,6 @@
 #include "Spark/renderer/vulkan/vulkan_material.h"
 #include "Spark/containers/darray.h"
+#include "Spark/renderer/vulkan/vulkan_buffer.h"
 #include "Spark/renderer/vulkan/vulkan_command_buffer.h"
 #include "Spark/renderer/vulkan/vulkan_context.h"
 #include <vulkan/vulkan_core.h>
@@ -39,4 +40,8 @@ void vulkan_material_bind(vulkan_context_t* context, vulkan_command_buffer_t* co
             internal_material->first_set, internal_material->set_count, &internal_material->sets[internal_material->first_set], 
             0, NULL);
     return;
+}
+
+void vulkan_material_update_buffer(struct vulkan_context* context, void* data, u32 size, u32 offset, vulkan_material_t* material) {
+    vulkan_buffer_update(context, material->storage_buffer, data, size, offset);
 }

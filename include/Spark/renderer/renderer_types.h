@@ -60,6 +60,10 @@ typedef struct renderer_backend {
     texture_t (*create_image_from_data)(const char* data, u32 widht, u32 height, u32 channels, texture_filter_t filter);
     material_t (*create_material)(material_config_t* config);
 
+    // Resource specific functions
+    // Materials
+    void (*material_set_buffer)(material_t* material, void* data, u32 size, u32 offset);
+
     /**
      * @brief The number of frames rendered
      */

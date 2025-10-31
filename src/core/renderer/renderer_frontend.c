@@ -57,6 +57,7 @@ b8 renderer_initialize(const char* application_name, struct platform_state* plat
                 .create_image_from_data = vulkan_create_image_from_data,
                 .create_material        = vulkan_create_material,
                 .resize                 = vulkan_renderer_resize,
+                .material_update_buffer = vulkan_renderer_material_update_buffer,
             };
 
         break;
@@ -138,6 +139,10 @@ material_t renderer_create_material(material_config_t* config) {
     return vulkan_create_material(config);
 }
 
+void material_update_buffer(material_t* material, void* data, u32 size, u32 offset) {
+    return vulkan_renderer_material_update_buffer(material, data, size, offset);
+}
+
 #else
 void renderer_shutdown() {
     state_ptr->backend.shutdown(&state_ptr->backend);
@@ -178,6 +183,10 @@ texture_t renderer_create_image_from_data(const char* data, u32 width, u32 heigh
 
 material_t renderer_create_material(material_config_t* config) {
     return state_ptr->backend.create_material(config);
+}
+
+void material_update_buffer(material_t* material, void* data, u32 size, u32 offset) {
+    state_ptr->backend.material_update_buffer(material, data, size, offset);
 }
 #endif
 

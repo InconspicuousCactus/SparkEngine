@@ -17,3 +17,5 @@ typedef struct orthographic_camera {
 
 extern ECS_COMPONENT_DECLARE(camera_t);
 extern ECS_COMPONENT_DECLARE(orthographic_camera_t);
+
+vec2 orthographic_camera_screen_space_to_world_space(orthographic_camera_t* camera, vec2 pos, vec3 position);

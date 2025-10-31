@@ -31,3 +31,4 @@ typedef struct material_config {
 
 void material_set_texture(material_t* material, texture_t* texture, u32 set, u32 binding);
 void material_update(material_t* update);
+void material_update_buffer(material_t* material, void* data, u32 size, u32 offset);

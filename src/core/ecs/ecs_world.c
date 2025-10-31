@@ -103,3 +103,22 @@ void ecs_world_progress() {
         }
     }
 }
+
+void ecs_world_set_singleton(ecs_world_t* world, ecs_component_id component, entity_t singleton) {
+    component_singleton_map_insert(&world->singletons, component, singleton);
+}
+
+void* ecs_world_get_singleton(ecs_world_t* world, ecs_component_id component) {
+    entity_t entity = 0;
+    if (!component_singleton_map_try_get(&world->singletons, component, &entity)) {
+#ifdef SPARK_DEBUG
+        ecs_component_t* _comp = &world->components.data[component];
+        SERROR("No singleton of for component %s exists.", _comp->name);
+#else 
+        SERROR("No singleton of for component %d exists.", component);
+#endif
+        return NULL;
+    }
+
+    return entity_get_component(world, entity, component);
+}

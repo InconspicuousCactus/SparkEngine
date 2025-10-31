@@ -57,34 +57,40 @@ void render_system_initialize(ecs_world_t* world) {
     render_state.render_entities_query = ecs_query_create(world, &render_entities_create_info);
 
     // Render Perspective Cameras
-    const ecs_component_id render_cameras_components[] = {
-        ECS_COMPONENT_ID(camera_t), 
-        ECS_COMPONENT_ID(local_to_world_t),
-        ECS_COMPONENT_ID(translation_t),
-        ECS_COMPONENT_ID(rotation_t),
+    const ecs_system_create_info_t render_cameras_create_info = {
+        .query = {
+            .component_count = 4,
+            .components = (ecs_component_id[]) {
+                ECS_COMPONENT_ID(camera_t), 
+                ECS_COMPONENT_ID(local_to_world_t),
+                ECS_COMPONENT_ID(translation_t),
+                ECS_COMPONENT_ID(rotation_t),
+            }
+        },
+        .phase = ECS_PHASE_RENDER,
+        .callback = render_perspective_cameras,
+        .name = "Render Cameras",
     };
 
-    const ecs_query_create_info_t render_cameras_create_info = {
-        .component_count = 4,
-        .components = render_cameras_components,
-    };
-
-    ecs_system_create(world, ECS_PHASE_RENDER, &render_cameras_create_info, render_perspective_cameras, "render_cameras");
+    ecs_system_create(world, &render_cameras_create_info);
 
     // Render Orthographic Cameras
-    const ecs_component_id render_orthographic_cameras_components[] = {
-        ECS_COMPONENT_ID(orthographic_camera_t), 
-        ECS_COMPONENT_ID(local_to_world_t),
-        ECS_COMPONENT_ID(translation_t),
-        ECS_COMPONENT_ID(rotation_t),
+    const ecs_system_create_info_t render_orth_cameras_create_info = {
+        .query = {
+            .component_count = 4,
+            .components = (ecs_component_id[]) {
+                ECS_COMPONENT_ID(orthographic_camera_t), 
+                ECS_COMPONENT_ID(local_to_world_t),
+                ECS_COMPONENT_ID(translation_t),
+                ECS_COMPONENT_ID(rotation_t),
+            },
+        },
+        .phase = ECS_PHASE_RENDER,
+        .callback = render_orthographic_cameras,
+        .name = "Render Orthographic Cameras",
     };
 
-    const ecs_query_create_info_t render_orth_cameras_create_info = {
-        .component_count = 4,
-        .components = render_orthographic_cameras_components,
-    };
-
-    ecs_system_create(world, ECS_PHASE_RENDER, &render_orth_cameras_create_info, render_orthographic_cameras, "render_orthographic_cameras");
+    ecs_system_create(world, &render_orth_cameras_create_info);
 }
 
 void render_system_shutdown() {

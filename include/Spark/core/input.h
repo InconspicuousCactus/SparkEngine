@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Spark/defines.h"
+#include "Spark/math/math_types.h"
 
 typedef enum {
     MOUSE_BUTTON_LEFT,
@@ -145,10 +146,13 @@ void input_initialize();
 void input_shutdown();
 void input_update(f64 delta_time);
 
-SAPI b8 input_is_key_down(keycode_t key);
-SAPI b8 input_is_key_up(keycode_t key);
-SAPI b8 input_was_key_down(keycode_t key);
-SAPI b8 input_was_key_up(keycode_t key);
+SAPI b8 input_is_key_pressed (keycode_t key);
+SAPI b8 input_is_key_down    (keycode_t key);
+SAPI b8 input_is_key_up      (keycode_t key);
+
+SAPI b8 input_was_key_pressed(keycode_t key);
+SAPI b8 input_was_key_down   (keycode_t key);
+SAPI b8 input_was_key_up     (keycode_t key);
 
 void input_process_key(keycode_t key, b8 pressed);
 
@@ -159,6 +163,7 @@ SAPI b8 input_was_mouse_down(mouse_button_t key);
 SAPI b8 input_was_mouse_up(mouse_button_t key);
 SAPI void input_get_mouse_position(s32* x, s32* y);
 SAPI void input_get_previous_mouse_position(s32* x, s32* y);
+SAPI vec2 input_get_mouse_screen_space_position();
 
 void input_process_button(mouse_button_t button, b8 pressed);
 void input_process_mouse_move(s16 x, s16 y);

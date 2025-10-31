@@ -76,23 +76,22 @@ void physics_backend_initialize(linear_allocator_t* allocator) {
     // Setup physics system
     ecs_world_t* world = ecs_world_get();
 
-#define physics_step_component_count 5
-    ecs_component_id physics_step_components[physics_step_component_count] = {
-        ECS_COMPONENT_ID(physics_body_t), 
-        ECS_COMPONENT_ID(velocity_t), 
-        ECS_COMPONENT_ID(translation_t), 
-        ECS_COMPONENT_ID(rotation_t),
-        ECS_COMPONENT_ID(dirty_transform_t)  
+    const ecs_system_create_info_t phsyics_step_create = {
+        .query = {
+            .component_count = 5,
+            .components = (ecs_component_id[]) {
+                ECS_COMPONENT_ID(physics_body_t), 
+                ECS_COMPONENT_ID(velocity_t), 
+                ECS_COMPONENT_ID(translation_t), 
+                ECS_COMPONENT_ID(rotation_t),
+                ECS_COMPONENT_ID(dirty_transform_t)  
+            }
+        },
+        .callback = physics_step_system,
+        .phase = ECS_PHASE_PHYSICS,
+        .name = "Physics",
     };
-    ecs_query_create_info_t physics_step_create_info = {
-        .component_count = physics_step_component_count,
-        .components = physics_step_components,
-    };
-    ecs_system_create(world, 
-            ECS_PHASE_PHYSICS, 
-            &physics_step_create_info,
-            physics_step_system, 
-            "Physics");
+    ecs_system_create(world, &phsyics_step_create);
 }
 
 void physics_backend_shutdown() {
@@ -177,6 +176,7 @@ void jph_trace(const char* message) {
 
 b8 jph_error(const char* expression, const char* message, const char* file, uint32_t line) {
     SCRITICAL("JPH Error '%s' - %s %s:%d", expression, message, file, line);
+    return true;
 }
 
 void physics_step_system(ecs_iterator_t* iterator) {

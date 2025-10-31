@@ -136,38 +136,38 @@ void create_world_to_local_matrix(ecs_iterator_t* iterator) {
 }
 
 void transform_system_initialize(ecs_world_t* world) {
-    const ecs_component_id components[5] = {
-        ECS_COMPONENT_ID(translation_t),
-        ECS_COMPONENT_ID(rotation_t),
-        ECS_COMPONENT_ID(scale_t),
-        ECS_COMPONENT_ID(local_to_world_t),
-        ECS_COMPONENT_ID(dirty_transform_t),
+    const ecs_system_create_info_t update_2d_create_info = {
+        .query = {
+            .component_count = 4,
+            .components = (ecs_component_id[]) {
+                ECS_COMPONENT_ID(translation_2d_t),
+                ECS_COMPONENT_ID(rotation_t),
+                ECS_COMPONENT_ID(scale_2d_t),
+                ECS_COMPONENT_ID(local_to_world_t)
+            }
+        },
+        .phase = ECS_PHASE_TRANSFORM,
+        .name = "Transform Update 2D",
+        .callback = create_world_to_local_matrix,
     };
+    ecs_system_create(world, &update_2d_create_info);
 
-    const ecs_component_id without_components_3d[1] = {
-        ECS_COMPONENT_ID(entity_parent_t),
+    const ecs_system_create_info_t update_3d_create_info = {
+        .query = {
+            .component_count = 5,
+            .components = (ecs_component_id[]) {
+                ECS_COMPONENT_ID(translation_t),
+                ECS_COMPONENT_ID(rotation_t),
+                ECS_COMPONENT_ID(scale_t),
+                ECS_COMPONENT_ID(local_to_world_t),
+                ECS_COMPONENT_ID(dirty_transform_t),
+            }
+        },
+        .phase = ECS_PHASE_TRANSFORM,
+        .name = "Transform Update 3D",
+        .callback = create_world_to_local_matrix,
     };
+    ecs_system_create(world, &update_3d_create_info);
 
-    ecs_query_create_info_t transform_3d_create_info = {
-        .component_count         = 5,
-        .components              = components,
-        .without_component_count = 1,
-        .without_components      = without_components_3d,
-    };
-
-    ecs_component_id components_2d[4] = {
-        ECS_COMPONENT_ID(translation_2d_t),
-        ECS_COMPONENT_ID(rotation_t),
-        ECS_COMPONENT_ID(scale_2d_t),
-        ECS_COMPONENT_ID(local_to_world_t)
-    };
-
-    ecs_query_create_info_t transform_2d_create_info = {
-        .components = components_2d,
-        .component_count = 4,
-    };
-
-    ecs_system_create(world, ECS_PHASE_TRANSFORM, &transform_3d_create_info, create_world_to_local_matrix, "Update transform system 3d");
-    ecs_system_create(world, ECS_PHASE_TRANSFORM, &transform_2d_create_info, create_2d_world_to_local_matrix, "Update transform system 2d");
 }
 

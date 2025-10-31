@@ -1,6 +1,7 @@
 #pragma once
 #include "Spark/defines.h"
 #include "Spark/memory/linear_allocator.h"
+#include "Spark/renderer/material.h"
 #include "Spark/renderer/renderer_types.h"
 
 b8 vulkan_renderer_initialize(const char* application_name, struct platform_state* plat_state, linear_allocator_t* allocator);
@@ -20,3 +21,5 @@ texture_t vulkan_create_image_from_file(const char* path, texture_filter_t filte
 texture_t vulkan_create_image_from_data(const char* data, u32 width, u32 height, u32 channels, texture_filter_t filter);
 
 vec2 vulkan_get_screen_size();
+
+void vulkan_renderer_material_update_buffer(material_t* material, void* data, u32 size, u32 offset);

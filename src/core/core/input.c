@@ -7,6 +7,7 @@
 #include "Spark/core/smemory.h"
 #include "Spark/core/logging.h"
 #include "Spark/core/event.h"
+#include "Spark/renderer/renderer_frontend.h"
 
 typedef struct {
     b8 keys[0xff];
@@ -116,23 +117,26 @@ input_process_mouse_wheel(s32 delta) {
 // ==========================
 // Keyboard 
 // ==========================
-b8 
-input_is_key_down(keycode_t key) {
+b8 input_is_key_pressed(keycode_t key) {
+    return state.keyboard_current.keys[key];
+}
+b8 input_is_key_down(keycode_t key) {
     SASSERT(is_initialized, "Input system not initialized");
     return state.keyboard_current.keys[key] == true && state.keyboard_previous.keys[key] == false;
 }
-b8 
-input_is_key_up(keycode_t key) {
+b8 input_is_key_up(keycode_t key) {
     SASSERT(is_initialized, "Input system not initialized");
     return state.keyboard_current.keys[key] == false && state.keyboard_previous.keys[key] == true;
 }
-b8 
-input_was_key_down(keycode_t key) {
+
+b8 input_was_key_pressed(keycode_t key) {
+    return state.keyboard_previous.keys[key];
+}
+b8 input_was_key_down(keycode_t key) {
     SASSERT(is_initialized, "Input system not initialized");
     return state.keyboard_previous.keys[key] == true;
 }
-b8 
-input_was_key_up(keycode_t key) {
+b8 input_was_key_up(keycode_t key) {
     SASSERT(is_initialized, "Input system not initialized");
     return state.keyboard_previous.keys[key] == false;
 }
@@ -143,12 +147,12 @@ input_was_key_up(keycode_t key) {
 b8 
 input_is_mouse_down(mouse_button_t key) {
     SASSERT(is_initialized, "Input system not initialized");
-    return state.mouse_current.buttons[key] == true;
+    return state.mouse_current.buttons[key] == true && state.mouse_previous.buttons[key] == false;
 }
 b8 
 input_is_mouse_up(mouse_button_t key) {
     SASSERT(is_initialized, "Input system not initialized");
-    return state.mouse_current.buttons[key] == false;
+    return state.mouse_current.buttons[key] == false && state.mouse_previous.buttons[key] == true;
 }
 b8 
 input_was_mouse_down(mouse_button_t key) {
@@ -171,4 +175,13 @@ input_get_previous_mouse_position(s32* x, s32* y) {
     SASSERT(is_initialized, "Input system not initialized");
     *x = state.mouse_previous.x;
     *y = state.mouse_previous.y;
+}
+
+vec2
+input_get_mouse_screen_space_position() {
+    vec2 screen_size = renderer_get_screen_size();
+    return (vec2) {
+        .x = state.mouse_current.x / screen_size.x,
+        .y = state.mouse_current.y / screen_size.y,
+    };
 }

@@ -87,6 +87,7 @@ void entity_archetype_print_debug(entity_archetype_t* archetype);
 void entity_archetype_match_queryies(entity_archetype_t* archetyle, struct ecs_world* world);
 
 darray_header(entity_archetype_t, entity_archetype);
+hashmap_header(component_singleton_map, ecs_component_id, entity_t);
 
 // ================================
 // ECS Component
@@ -155,7 +156,14 @@ typedef struct ecs_system {
 #endif
 } ecs_system_t;
 
-void ecs_system_create(struct ecs_world* world, ecs_phase_t phase, const ecs_query_create_info_t* create_info, void (*callback)(ecs_iterator_t*), const char* name);
+typedef struct ecs_system_create_info {
+    ecs_query_create_info_t query;
+    ecs_phase_t phase;
+    void (*callback)(ecs_iterator_t*);
+    const char* name;
+} ecs_system_create_info_t;
+
+void ecs_system_create(struct ecs_world* world, const ecs_system_create_info_t* create_info);
 void ecs_system_destroy(ecs_system_t* system);
 
 darray_header(ecs_system_t, ecs_system);

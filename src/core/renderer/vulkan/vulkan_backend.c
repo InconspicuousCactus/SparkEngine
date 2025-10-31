@@ -760,6 +760,7 @@ material_t vulkan_create_material(material_config_t* config) {
                             &context->graphics_queue, 
                             buffer);
                     config->resources[i].value = buffer;
+                    material.storage_buffer = buffer;
                 }
                 vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material.sets[set], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &buffer_info[i], &descriptor_writes[i]);
                 break;
@@ -1265,3 +1266,7 @@ void create_renderpasses() {
     vulkan_renderpass_create(context, clear_color, false, false, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_UI]);
 }
 
+void vulkan_renderer_material_update_buffer(material_t* material, void* data, u32 size, u32 offset) {
+    vulkan_material_t* vulkan_material = &context->materials.data[material->internal_index];
+    vulkan_material_update_buffer(context, data, size, offset, vulkan_material);
+}
