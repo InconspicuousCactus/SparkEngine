@@ -17,8 +17,8 @@ typedef struct material {
 #ifdef SPARK_DEBUG
     char name[MATERIAL_CONFIG_MAX_NAME_LENGTH];
 #endif 
-    u16 internal_index;
-    u16 shader_index;
+    void* internal_data;
+    shader_t* shader;
 } material_t;
 extern ECS_COMPONENT_DECLARE(material_t);
 

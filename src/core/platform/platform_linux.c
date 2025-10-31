@@ -1,7 +1,11 @@
 // Linux platform layer.
 #include "Spark/math/math_types.h"
-#include <xcb/xproto.h>
+#include <assert.h>
 #ifdef SPARK_PLATFORM_LINUX
+#include <xcb/xproto.h>
+
+#include <unistd.h>
+#include <time.h>  // nanosleep
 
 #include "Spark/platform/platform.h"
 #include "Spark/core/logging.h"
@@ -16,7 +20,7 @@
 #include <X11/XKBlib.h>  // sudo apt-get install libx11-dev
 #include <X11/Xlib.h>
 #include <X11/Xlib-xcb.h>  // sudo apt-get install libxkbcommon-x11-dev
-#include <sys/time.h>
+// #include <sys/time.h>
 
 // Vulkan
 #define VK_USE_PLATFORM_XCB_KHR
@@ -25,11 +29,6 @@
 #include <vulkan/vulkan_xcb.h>
 #include "Spark/renderer/vulkan/vulkan_platform.h"
 
-#if _POSIX_C_SOURCE >= 199309L
-#include <time.h>  // nanosleep
-#else
-#include <unistd.h>  // usleep
-#endif
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -328,17 +327,10 @@ f64 platform_get_absolute_time() {
 }
 
 void platform_sleep(u64 ms) {
-#if _POSIX_C_SOURCE >= 199309L
     struct timespec ts;
     ts.tv_sec = ms / 1000;
     ts.tv_nsec = (ms % 1000) * 1000 * 1000;
     nanosleep(&ts, 0);
-#else
-    if (ms >= 1000) {
-        sleep(ms / 1000);
-    }
-    usleep((ms % 1000) * 1000);
-#endif
 }
 
 void platform_get_required_extension_names(const char** names, u32 start_index, u32* out_extension_count) {

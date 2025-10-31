@@ -37,7 +37,7 @@ typedef struct shader_resource {
 #define SHADER_MAX_RESOURCES 8
 #define SHADER_MAX_ATTRIBUTES 8
 typedef struct shader {
-    u32 internal_index;
+    u32 internal_offset;
     shader_resource_layout_t layout[SHADER_MAX_RESOURCES];
     vertex_attributes_t attributes[SHADER_MAX_ATTRIBUTES];
     builtin_renderpass_t renderpass;

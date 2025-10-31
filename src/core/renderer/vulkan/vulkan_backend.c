@@ -6,6 +6,7 @@
 #include "Spark/math/mat4.h"
 #include "Spark/math/quat.h"
 #include "Spark/memory/block_allocator.h"
+#include "Spark/memory/freelist.h"
 #include "Spark/renderer/material.h"
 #include "Spark/renderer/mesh.h"
 #include "Spark/renderer/renderer_types.h"
@@ -68,10 +69,10 @@ b8 vulkan_renderer_initialize(const char* application_name, struct platform_stat
     // Create context
     context = linear_allocator_allocate(allocator, sizeof(vulkan_context_t));
     context->allocator = NULL;
-    darray_vulkan_mesh_create  (30, &context->meshes);
-    darray_vulkan_shader_create(30, &context->shaders);
-    darray_vulkan_image_create (30, &context->images);
-    darray_vulkan_material_create(30, &context->materials);
+    block_allocator_create(2048, sizeof(vulkan_mesh_t    ), &context->mesh_allocator);
+    block_allocator_create(2048, sizeof(vulkan_shader_t  ), &context->shader_allocator);
+    block_allocator_create(2048, sizeof(vulkan_image_t   ), &context->image_allocator);
+    block_allocator_create(2048, sizeof(vulkan_material_t), &context->material_allocator);
     darray_mat4_create(2048, &context->local_instance_buffer);
 
     create_vulkan_instance(application_name);
@@ -113,12 +114,22 @@ b8 vulkan_renderer_initialize(const char* application_name, struct platform_stat
             &context->graphics_queue, 
             &context->vertex_buffer);
 
+    void* vertex_memory = NULL;
+    VK_CHECK(vkMapMemory(context->logical_device, context->vertex_buffer.memory, 0, VULKAN_CONTEXT_VERTEX_BUFFER_SIZE, 0, &vertex_memory));
+    freelist_create(vertex_memory, VULKAN_CONTEXT_VERTEX_BUFFER_SIZE, &context->vertex_buffer_freelist);
+    // vkUnmapMemory(context->logical_device, context->vertex_buffer.memory);
+
     vulkan_buffer_create(context, 
             VULKAN_CONTEXT_INDEX_BUFFER_SIZE,
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
             &context->graphics_queue, 
             &context->index_buffer);
+
+    void* index_memory = NULL;
+    VK_CHECK(vkMapMemory(context->logical_device, context->index_buffer.memory, 0, VULKAN_CONTEXT_INDEX_BUFFER_SIZE, 0, &index_memory));
+    freelist_create(index_memory, VULKAN_CONTEXT_INDEX_BUFFER_SIZE, &context->index_buffer_freelist);
+    // vkUnmapMemory(context->logical_device, context->index_buffer.memory);
 
     // Uniform buffers
     mat4 identity = mat4_translation((vec3) { 0, 0, 0 });
@@ -175,10 +186,10 @@ b8 vulkan_renderer_initialize(const char* application_name, struct platform_stat
 
     resource_t default_shader_res = resource_loader_get_resource("assets/shaders/default", true);
     shader_t* shader = resource_get_shader(&default_shader_res);
-    context->default_shader = context->shaders.data[shader->internal_index];
+    context->default_shader = (vulkan_shader_t*)context->shader_allocator.buffer + shader->internal_offset;
 
     resource_t default_mat_res = resource_loader_get_resource("assets/resources/materials/default", true);
-    context->default_material = context->materials.data[resource_get_material(&default_mat_res)->internal_index];
+    context->default_material = resource_get_material(&default_mat_res)->internal_data;
 
     STRACE("Created vulkan renderer");
     return true;
@@ -197,21 +208,15 @@ b8 vulkan_renderer_shutdown() {
         }
     }
 
-    for (u32 i = 0; i < context->shaders.count; i++) {
-        vulkan_shader_destroy(context, &context->shaders.data[i]);
-    }
-    for (u32 i = 0; i < context->images.count; i++) {
-        vulkan_image_destroy(context, &context->images.data[i]);
-    }
-    for (u32 i = 0; i < context->materials.count; i++) {
-        vulkan_material_destroy(context, &context->materials.data[i]);
-    }
+    block_allocator_iterate(&context->shader_allocator, shader, vulkan_shader_destroy(context, shader); );
+    block_allocator_iterate(&context->image_allocator, image, vulkan_image_destroy(context, image); );
+    block_allocator_iterate(&context->material_allocator, material, vulkan_material_destroy(context, material); );
 
-    darray_vulkan_mesh_destroy    (&context->meshes);
-    darray_vulkan_shader_destroy  (&context->shaders);
-    darray_vulkan_material_destroy(&context->materials);
-    darray_vulkan_image_destroy   (&context->images);
-    darray_mat4_destroy           (&context->local_instance_buffer);
+    block_allocator_destroy(&context->mesh_allocator);
+    block_allocator_destroy(&context->shader_allocator);
+    block_allocator_destroy(&context->material_allocator);
+    block_allocator_destroy(&context->image_allocator);
+    darray_mat4_destroy    (&context->local_instance_buffer);
     sfree(context->shader_text_buffer, context->text_buffer_size, MEMORY_TAG_ARRAY);
 
     vulkan_image_destroy(context, &context->default_texture);
@@ -308,14 +313,14 @@ void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buf
     };
     vkCmdSetScissor(command_buffer->handle, 0, 1, &scissor);
 
-    u32 old_material = INVALID_ID;
+    material_t* old_material = NULL;
     vulkan_indirect_render_info_t* info = &context->indirect_draw_infos[context->current_frame];
     for (u32 i = 0; i < info->draws.count; i++) {
         indirect_draw_info_t* draw = &info->draws.data[i];
 
-        if (old_material != draw->material_index) {
-            old_material = draw->material_index;
-            vulkan_material_bind(context, command_buffer, material_loader_get_material(draw->material_index));
+        if (old_material != draw->material) {
+            old_material = draw->material;
+            vulkan_material_bind(context, command_buffer, draw->material);
         }
 
         vkCmdDrawIndexedIndirect(command_buffer->handle, info->buffer.handle, sizeof(VkDrawIndexedIndirectCommand) * i, 1, sizeof(VkDrawIndexedIndirectCommand));
@@ -347,27 +352,27 @@ void create_indirect_draw_commands(vulkan_renderpass_t* renderpass, vulkan_comma
     vkCmdSetScissor(command_buffer->handle, 0, 1, &scissor);
 
     u32 instance_count = 0;
-    u32 old_material = INVALID_ID;
+    vulkan_material_t* old_material = NULL;
     vulkan_indirect_render_info_t* info = &context->indirect_draw_infos[context->current_frame];
     for (u32 i = 0, command_index = 0; i < renderpass_geo->geometry_count; i++) {
         instance_count++;
         geometry_render_data_t* geometry = &renderpass_geo->geometry[i];
-        vulkan_mesh_t* mesh = &context->meshes.data[geometry->mesh.internal_index];
-        u32 material = geometry->material->internal_index;
+        vulkan_mesh_t* mesh = context->mesh_allocator.buffer + geometry->mesh.internal_offset;
+        vulkan_material_t* material = geometry->material->internal_data;
 
         darray_mat4_push(&context->local_instance_buffer, geometry->model);
 
         b8 is_instance = false;
         if (i < renderpass_geo->geometry_count - 1) {
             geometry_render_data_t* next_geometry = &renderpass_geo->geometry[i + 1];
-            u32 next_material = geometry->material->internal_index;
+            vulkan_material_t* next_material = geometry->material->internal_data;
 
-            is_instance = geometry->mesh.internal_index == next_geometry->mesh.internal_index && next_material == material;
+            is_instance = geometry->mesh.internal_offset == next_geometry->mesh.internal_offset && next_material == material;
         }
 
         if (!is_instance) {
             indirect_draw_info_t draw_info = (indirect_draw_info_t) {
-                .material_index = material,
+                .material = geometry->material,
                     .command_index = command_index++,
                     .shader_type = renderpass_index,
             };
@@ -387,7 +392,7 @@ void create_indirect_draw_commands(vulkan_renderpass_t* renderpass, vulkan_comma
             instance_count = 0;
             if (old_material != material) {
                 old_material = material;
-                vulkan_material_bind(context, command_buffer, material_loader_get_material(material));
+                vulkan_material_bind(context, command_buffer, geometry->material);
             }
 
             vkCmdDrawIndexedIndirect(command_buffer->handle, info->buffer.handle, sizeof(VkDrawIndexedIndirectCommand) * *draw_offset, 1, sizeof(VkDrawIndexedIndirectCommand));
@@ -490,62 +495,66 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
     // SDEBUG("Creating mesh: Vertex count: %d, Stride: %d, Offset: %d, Index count: %d, Stride: %d, Offset: %d", vertex_count, vertex_stride, context->vertex_buffer_offset, index_count, index_stride, context->index_buffer_offset);
     SASSERT(index_stride == 4, "Short index not implemented.");
 
+    // Map vertex and index buffers
+    // void* memory = 0;
+    // VK_CHECK(vkMapMemory(context->logical_device, context->vertex_buffer.memory, 0, VULKAN_CONTEXT_VERTEX_BUFFER_SIZE, 0, &memory));
+    // VK_CHECK(vkMapMemory(context->logical_device, context->index_buffer.memory, 0, VULKAN_CONTEXT_INDEX_BUFFER_SIZE, 0, &memory));
+
     // Pad the vertex buffer so that shaders can have unique vertex layouts
-    u32 index_padding = index_stride - (context->index_buffer_offset % index_stride);
-    if (index_padding != index_stride) {
-        context->index_buffer_offset += index_padding;
-    }
-    u32 vertex_padding = vertex_stride - (context->vertex_buffer_offset % vertex_stride);
-    if (vertex_padding != vertex_stride) {
-        context->vertex_buffer_offset += vertex_padding;
-    }
+    void* out_vertices = freelist_allocate(&context->vertex_buffer_freelist, vertex_stride * (vertex_count + 1));
+    void* out_indices = freelist_allocate(&context->index_buffer_freelist, index_stride * (index_count + 1));
+    SASSERT(out_vertices, "Failed to allocate vertex array for mesh.");
+    SASSERT(out_indices, "Failed to allocate index array for mesh.");
 
-    SASSERT(context->vertex_buffer_offset % vertex_stride == 0, "Invalid vbo");
-    SASSERT(context->index_buffer_offset % index_stride == 0, "Invalid vbo");
+    u32 index_padding = (out_indices - context->index_buffer_freelist.memory) % index_stride;
+    u32 vertex_padding = (out_vertices - context->vertex_buffer_freelist.memory) % vertex_stride;
 
-    vulkan_mesh_t internal_mesh = {
-        .index_count = index_count,
-        .index_start = context->index_buffer_offset / index_stride,
-        .vertex_count = vertex_count,
-        .vertex_stride = vertex_stride,
-        .vertex_start = context->vertex_buffer_offset / vertex_stride,
-    };
+    vulkan_mesh_t* internal_mesh = block_allocator_allocate(&context->mesh_allocator); 
+    internal_mesh->index_count = index_count;
+    internal_mesh->index_start = (out_indices - context->index_buffer_freelist.memory + index_padding) / index_stride;
+    internal_mesh->vertex_count = vertex_count;
+    internal_mesh->vertex_stride = vertex_stride;
+    internal_mesh->vertex_start = (out_vertices - context->vertex_buffer_freelist.memory + vertex_padding) / vertex_stride;
+
+    internal_mesh->vertex_allocation = out_vertices - context->vertex_buffer_freelist.memory;
+    internal_mesh->index_allocation = out_indices - context->index_buffer_freelist.memory;
     // SDEBUG("\tIndext Start: %d, Vertex Start: %d", internal_mesh.index_start, internal_mesh.vertex_start);
 
     // Set buffers
-    vulkan_buffer_update(context, &context->vertex_buffer, vertices, vertex_count * vertex_stride, context->vertex_buffer_offset);
-    context->vertex_buffer_offset += vertex_count * vertex_stride;
-
-    if (index_count > 0) {
-        vulkan_buffer_update(context, &context->index_buffer, indices, index_count * index_stride, context->index_buffer_offset);
-        context->index_buffer_offset += index_count * index_stride;
-    }
+    SDEBUG("Out vertices: %p", out_vertices);
+    SDEBUG("Out indices %p copying %d bytes", out_indices);
+    scopy_memory(out_vertices, vertices, vertex_count * vertex_stride);
+    scopy_memory(out_indices, indices, index_count * index_stride);
 
     // Get new index
-    u32 internal_index = context->meshes.count;
-    darray_vulkan_mesh_push(&context->meshes, internal_mesh);
-
     mesh_t mesh = {
-        .internal_index = internal_index,
+        .internal_offset = (void*)internal_mesh - context->mesh_allocator.buffer,
     };
 
     return mesh;
 }
 
+void vulkan_destroy_mesh(mesh_t mesh) {
+    vulkan_mesh_t* _mesh = context->mesh_allocator.buffer + mesh.internal_offset;
+    freelist_free(&context->vertex_buffer_freelist, context->vertex_buffer_freelist.memory + _mesh->vertex_allocation);
+    freelist_free(&context->index_buffer_freelist, context->index_buffer_freelist.memory + _mesh->index_allocation);
+    block_allocator_free(&context->mesh_allocator, _mesh);
+}
+
 shader_t vulkan_create_shader(shader_config_t* config) {
     // Shader
-    vulkan_shader_t shader = {};
+    vulkan_shader_t* shader = block_allocator_allocate(&context->shader_allocator);
 
     if (config->vertex_spv) {
-        vulkan_shader_module_create(context, (u32*)config->vertex_spv, config->vertex_spv_size, &shader.vert);
+        vulkan_shader_module_create(context, (u32*)config->vertex_spv, config->vertex_spv_size, &shader->vert);
     }
     if (config->fragment_spv) {
-        vulkan_shader_module_create(context, (u32*)config->fragment_spv, config->fragment_spv_size, &shader.frag);
+        vulkan_shader_module_create(context, (u32*)config->fragment_spv, config->fragment_spv_size, &shader->frag);
     }
 
     SASSERT(config->type >= 0 && config->type < BUILTIN_RENDERPASS_ENUM_MAX, "Cannot create shader for invalid renderpass: %d", config->type);
     vulkan_renderpass_t* renderpass = &context->renderpasses[config->type];
-    vulkan_shader_create(context, renderpass, 0, config->attribute_count, config->attributes, config->resource_count, config->layout, true, &shader);
+    vulkan_shader_create(context, renderpass, 0, config->attribute_count, config->attributes, config->resource_count, config->layout, true, shader);
 
     // Bind shader globals
     shader_resource_t skybox_uniform_resource[] = { 
@@ -587,13 +596,13 @@ shader_t vulkan_create_shader(shader_config_t* config) {
 
     switch (config->type) {
         case BUILTIN_RENDERPASS_SKYBOX:
-            vulkan_shader_bind_resources(context, &shader, 0, 1, skybox_uniform_resource);
+            vulkan_shader_bind_resources(context, shader, 0, 1, skybox_uniform_resource);
             break;
         case BUILTIN_RENDERPASS_WORLD:
-            vulkan_shader_bind_resources(context, &shader, 0, 2, world_uniform_resource);
+            vulkan_shader_bind_resources(context, shader, 0, 2, world_uniform_resource);
             break;
         case BUILTIN_RENDERPASS_UI:
-            vulkan_shader_bind_resources(context, &shader, 0, 1, &ui_uniform_resource);
+            vulkan_shader_bind_resources(context, shader, 0, 1, &ui_uniform_resource);
             break;
         case BUILTIN_RENDERPASS_ENUM_MAX:
             break;
@@ -602,56 +611,51 @@ shader_t vulkan_create_shader(shader_config_t* config) {
     shader_t shader_base = {
         .resource_count  = config->resource_count,
         .attribute_count = config->attribute_count,
-        .internal_index  = context->shaders.count,
-        .renderpass            = config->type,
+        .internal_offset = (void*)shader - context->shader_allocator.buffer,
+        .renderpass      = config->type,
     };
+
     scopy_memory(shader_base.attributes, config->attributes, sizeof(config->attributes));
     scopy_memory(shader_base.layout, config->layout, sizeof(config->layout));
-
-    darray_vulkan_shader_push(&context->shaders, shader);
 
     return shader_base;
 }
 
 texture_t vulkan_create_image_from_file(const char* path, texture_filter_t filter) {
-    vulkan_image_t texture;
-    vulkan_image_create_from_file(context, path, filter, VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &texture);
+    vulkan_image_t* texture = block_allocator_allocate(&context->image_allocator);
+    vulkan_image_create_from_file(context, path, filter, VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture);
 
     texture_t out_texture = {
-        .internal_index = context->images.count,
+        .internal_offset = (void*)texture - context->image_allocator.buffer,
     };
-
-    darray_vulkan_image_push(&context->images, texture);
 
     return out_texture;
 }
+
 texture_t vulkan_create_image_from_data(const char* data, u32 width, u32 height, u32 channels, texture_filter_t filter) {
-    vulkan_image_t texture;
-    vulkan_image_create(context, filter, VK_FORMAT_R8G8B8A8_SRGB, width, height, VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &texture);
-    vulkan_image_upload_pixels(context, VK_FORMAT_R8G8B8A8_SRGB, width, height, (const void*)data, &texture);
+    vulkan_image_t* texture = block_allocator_allocate(&context->image_allocator);
+    vulkan_image_create(context, filter, VK_FORMAT_R8G8B8A8_SRGB, width, height, VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture);
+    vulkan_image_upload_pixels(context, VK_FORMAT_R8G8B8A8_SRGB, width, height, (const void*)data, texture);
 
     texture_t out_texture = {
-        .internal_index = context->images.count,
+        .internal_offset = (void*)texture - context->image_allocator.buffer,
     };
-
-    darray_vulkan_image_push(&context->images, texture);
 
     return out_texture;
 }
 
 material_t vulkan_create_material(material_config_t* config) {
-    vulkan_material_t material = {
-        .first_set = 255
-    };
+    vulkan_material_t* material = block_allocator_allocate(&context->material_allocator); 
+    material->first_set = 255;
 
     // Create descriptor sets
-    vulkan_shader_t internal_shader = context->default_shader;
-    u32 shader_index = 0;
+    vulkan_shader_t* internal_shader = context->default_shader;
+    shader_t* shader = shader_loader_get_shader(0);
+    
     if (config->shader_path[0] != 0) {
         resource_t shader_res = resource_loader_get_resource(config->shader_path, true);
-        shader_t* shader = resource_get_shader(&shader_res);
-        internal_shader = context->shaders.data[shader->internal_index];
-        shader_index = shader->internal_index;
+        shader = resource_get_shader(&shader_res);
+        internal_shader = context->shader_allocator.buffer + shader->internal_offset;
     }
 
     // Allocate resources
@@ -700,40 +704,40 @@ material_t vulkan_create_material(material_config_t* config) {
             continue;
         }
 
-        if (set < material.first_set) {
-            material.first_set = set;
+        if (set < material->first_set) {
+            material->first_set = set;
         }
-        material.set_count++;
+        material->set_count++;
 
         if (sampler_count > 0) {
             VkDescriptorSetAllocateInfo allocate_info = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = context->descriptor_pool,
                 .descriptorSetCount = sampler_count,
-                .pSetLayouts = &internal_shader.descriptor_layouts[set],
+                .pSetLayouts = &internal_shader->descriptor_layouts[set],
             };
 
-            vkAllocateDescriptorSets(context->logical_device, &allocate_info, &material.sets[set]);
+            vkAllocateDescriptorSets(context->logical_device, &allocate_info, &material->sets[set]);
         }
         if (uniform_count > 0) {
             VkDescriptorSetAllocateInfo allocate_info = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = context->descriptor_pool,
                 .descriptorSetCount = uniform_count,
-                .pSetLayouts = &internal_shader.descriptor_layouts[set],
+                .pSetLayouts = &internal_shader->descriptor_layouts[set],
             };
 
-            vkAllocateDescriptorSets(context->logical_device, &allocate_info, &material.sets[set]);
+            vkAllocateDescriptorSets(context->logical_device, &allocate_info, &material->sets[set]);
         }
         if (storage_count > 0) {
             VkDescriptorSetAllocateInfo allocate_info = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = context->descriptor_pool,
                 .descriptorSetCount = storage_count,
-                .pSetLayouts = &internal_shader.descriptor_layouts[set],
+                .pSetLayouts = &internal_shader->descriptor_layouts[set],
             };
 
-            vkAllocateDescriptorSets(context->logical_device, &allocate_info, &material.sets[set]);
+            vkAllocateDescriptorSets(context->logical_device, &allocate_info, &material->sets[set]);
         }
     }
 
@@ -760,15 +764,15 @@ material_t vulkan_create_material(material_config_t* config) {
                             &context->graphics_queue, 
                             buffer);
                     config->resources[i].value = buffer;
-                    material.storage_buffer = buffer;
+                    material->storage_buffer = buffer;
                 }
-                vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material.sets[set], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &buffer_info[i], &descriptor_writes[i]);
+                vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material->sets[set], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &buffer_info[i], &descriptor_writes[i]);
                 break;
             case SHADER_RESOURCE_UNIFORM_BUFFER:
-                vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material.sets[set], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &buffer_info[i], &descriptor_writes[i]);
+                vulkan_buffer_create_descriptor_write(config->resources[i].value, config->resources[i].binding, material->sets[set], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &buffer_info[i], &descriptor_writes[i]);
                 break;
             case SHADER_RESOURCE_SAMPLER:
-                image = &context->images.data[((texture_t*)config->resources[i].value)->internal_index];
+                image = context->image_allocator.buffer + ((texture_t*)config->resources[i].value)->internal_offset;
                 image_infos[i].sampler     = image->sampler;
                 image_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 image_infos[i].imageView   = image->view;
@@ -776,7 +780,7 @@ material_t vulkan_create_material(material_config_t* config) {
                 descriptor_writes[i] = 
                     (VkWriteDescriptorSet) {
                         .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                        .dstSet          = material.sets[set],
+                        .dstSet          = material->sets[set],
                         .dstBinding      = config->resources[i].binding,
                         .dstArrayElement = 0,
                         .descriptorCount = 1,
@@ -789,11 +793,9 @@ material_t vulkan_create_material(material_config_t* config) {
 
     vkUpdateDescriptorSets(context->logical_device, config->resource_count, descriptor_writes, 0, NULL);
 
-    u32 internal_index = context->materials.count;
-    darray_vulkan_material_push(&context->materials, material);
     material_t out_material = {
-        .internal_index = internal_index,
-        .shader_index = shader_index,
+        .internal_data = material,
+        .shader = shader,
     };
 
 #ifdef SPARK_DEBUG
@@ -1267,6 +1269,6 @@ void create_renderpasses() {
 }
 
 void vulkan_renderer_material_update_buffer(material_t* material, void* data, u32 size, u32 offset) {
-    vulkan_material_t* vulkan_material = &context->materials.data[material->internal_index];
+    vulkan_material_t* vulkan_material = material->internal_data;
     vulkan_material_update_buffer(context, data, size, offset, vulkan_material);
 }

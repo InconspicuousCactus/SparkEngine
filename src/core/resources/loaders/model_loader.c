@@ -120,7 +120,7 @@ resource_t create_model_from_config(model_config_t* config) {
 
     // Load materials
     s3d_material_t* s3d_materials = ((void*)header) + header->material_offset;
-    const u32 max_material_count = 64;
+    constexpr u32 max_material_count = 64;
     material_t* materials[max_material_count] = {};
 
     SASSERT(header->material_count < max_material_count, "S3d has too many materials, max of %d, got %d", max_material_count, header->material_count);
@@ -147,7 +147,7 @@ resource_t create_model_from_config(model_config_t* config) {
         materials[i] = material_loader_create_from_config(&material_config);
     }
 
-    const u32 max_models = 1024;
+    constexpr u32 max_models = 1024;
     model_t* models[max_models] = {};
 
     u32 resource_index = 0;
@@ -155,7 +155,7 @@ resource_t create_model_from_config(model_config_t* config) {
         s3d_object_t* object = (s3d_object_t*)((void*)state->file_buffer.data + sizeof(s3d_t) + sizeof(s3d_object_t) * i);
         model_t* model = block_allocator_allocate(&state->model_allocator);
         models[i] = model;
-        model->material_index = INVALID_ID_U16;
+        model->material = NULL;
         model->child_count = object->child_count;
 
         if (object->parent_index != INVALID_ID) {
@@ -185,10 +185,10 @@ resource_t create_model_from_config(model_config_t* config) {
                     mesh->index_stride);
 
             model->mesh = out_mesh;
-            model->material_index = materials[mesh->material_index]->internal_index;
+            model->material = materials[mesh->material_index];
             model->bounds = mesh->bounds;
         } else {
-            model->mesh.internal_index = INVALID_ID_U16;
+            model->mesh.internal_offset = INVALID_ID;
         }
 
         model->translation = object->position;
@@ -211,15 +211,11 @@ entity_t load_model_entity(ecs_world_t* world, model_t* model, entity_t parent, 
         entity_add_child(world, parent, e);
     } 
 
-    SDEBUG("Adding mesh %p / %d", model, model->mesh.internal_index);
-    if (model->mesh.internal_index != INVALID_ID_U16) {
+    SDEBUG("Adding mesh %p / %d", model, model->mesh.internal_offset);
+    if (model->mesh.internal_offset != INVALID_ID) {
         ENTITY_SET_COMPONENT(world, e, mesh_t, model->mesh);
 
-        if (model->material_index >= material_count) {
-            ENTITY_SET_COMPONENT(world, e, material_t, *material_loader_get_material(model->material_index));
-        } else {
-            ENTITY_SET_COMPONENT(world, e, material_t, *materials[model->material_index]);
-        }
+        ENTITY_SET_COMPONENT(world, e, material_t, *model->material);
         ENTITY_SET_COMPONENT(world, e, aabb_t, model->bounds);
     }
 

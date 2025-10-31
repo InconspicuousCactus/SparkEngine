@@ -29,7 +29,7 @@ void* ecs_world_get_singleton(ecs_world_t* world, ecs_component_id component);
 #define ECS_GET_SINGLETON(world, component) (component*)ecs_world_get_singleton(world, ECS_COMPONENT_ID(component))
 
 #ifdef SPARK_DEBUG
-#define ECS_COMPONENT_DEFINE(world, component) ECS_COMPONENT_ID(component) = ecs_world_component_define(world, ECS_COMPONENT_ID(component), sizeof(component))
+#define ECS_COMPONENT_DEFINE(world, component) ECS_COMPONENT_ID(component) = ecs_world_component_define(world, #component, sizeof(component))
 #else
 #define ECS_COMPONENT_DEFINE(world, component) ECS_COMPONENT_ID(component) = ecs_world_component_define(world, "", sizeof(component))
 #endif

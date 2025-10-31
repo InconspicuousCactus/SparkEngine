@@ -7,7 +7,7 @@ typedef enum texture_filter : u8 {
 } texture_filter_t;
 
 typedef struct texture {
-    u32 internal_index;
+    u32 internal_offset;
 } texture_t;
 
 darray_header(texture_t, texture);

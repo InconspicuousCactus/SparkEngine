@@ -3,6 +3,7 @@
 #include "Spark/math/mat4.h"
 #include "Spark/math/math_types.h"
 #include "Spark/memory/block_allocator.h"
+#include "Spark/memory/freelist.h"
 #include "Spark/renderer/renderer_types.h"
 #include "Spark/renderer/vulkan/vulkan_buffer.h"
 #include "Spark/renderer/vulkan/vulkan_command_buffer.h"
@@ -28,8 +29,8 @@
 
 typedef struct indirect_draw_info {
     u32 command_index;
-    u32 material_index;
     u32 shader_type;
+    material_t* material;
 } indirect_draw_info_t;
 
 darray_header(VkDrawIndexedIndirectCommand, VkDrawIndexedIndirectCommand);
@@ -86,10 +87,10 @@ typedef struct vulkan_context {
     darray_mat4_t local_instance_buffer;
 
     vulkan_buffer_t vertex_buffer;
-    u32 vertex_buffer_offset;
+    freelist_t vertex_buffer_freelist;
 
     vulkan_buffer_t index_buffer;
-    u32 index_buffer_offset;
+    freelist_t index_buffer_freelist;
 
 
     u64 text_buffer_size;
@@ -99,13 +100,13 @@ typedef struct vulkan_context {
 
     // Data
     vulkan_image_t    default_texture;
-    vulkan_shader_t   default_shader;
-    vulkan_material_t default_material;
+    vulkan_shader_t*   default_shader;
+    vulkan_material_t* default_material;
 
-    darray_vulkan_shader_t shaders;
-    darray_vulkan_material_t materials;
-    darray_vulkan_mesh_t   meshes;
-    darray_vulkan_image_t  images;
+    block_allocator_t   shader_allocator;
+    block_allocator_t   material_allocator;
+    block_allocator_t   image_allocator;
+    block_allocator_t   mesh_allocator;
 
 #ifdef SPARK_DEBUG
     VkDebugUtilsMessengerEXT debug_messenger;

@@ -277,11 +277,15 @@ u64 get_memory_alloc_count() {
 #ifdef SPARK_DEBUG 
 
 void addr2line(const char *ptr, const char *elf_name, char* output, u32 output_buffer_size) {
+#if _POSIX_C_SOURCE >= 2
     static char addr2line_str[1024] = {0};
     sprintf(addr2line_str, "addr2line %s -e %s", ptr, elf_name);
     FILE* handle = popen(addr2line_str, "r");
 
     fgets(output, output_buffer_size, handle);
+#else
+    string_ncopy(output, ptr, output_buffer_size);
+#endif
 }
 
 void* 

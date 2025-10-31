@@ -9,6 +9,7 @@
 #include "Spark/types/transforms.h"
 #include "Spark/ecs/components/entity_child.h"
 #include "Spark/ecs/components/entity_parent.h"
+#include "Spark/ui/text.h"
 
 // Rendering
 ECS_COMPONENT_DECLARE(camera_t);
@@ -36,6 +37,9 @@ ECS_COMPONENT_DECLARE(entity_child_t);
 // Physics
 ECS_COMPONENT_DECLARE(physics_body_t);
 ECS_COMPONENT_DECLARE(velocity_t);
+
+// UI 
+ECS_COMPONENT_DECLARE(text_t);
 
 void ecs_register_types(ecs_world_t* world) {
     // Rendering
@@ -68,4 +72,7 @@ void ecs_register_types(ecs_world_t* world) {
     ECS_COMPONENT_DEFINE(world, velocity_t);
 
     ECS_COMPONENT_ADD_DESTRUCTOR(world, physics_body_t, physics_body_destroy);
+
+    // UI
+    ECS_COMPONENT_DEFINE(world, text_t);
 }

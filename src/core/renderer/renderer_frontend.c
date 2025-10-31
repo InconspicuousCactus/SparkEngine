@@ -116,7 +116,7 @@ b8 renderer_draw_frame(render_packet_t* packet) {
 mesh_t renderer_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_stride, const void* indices, u32 index_count, u32 index_stride) {
     if (index_count <= 0 || vertex_count <= 0) {
         return (mesh_t) {
-            .internal_index = INVALID_ID,
+            .internal_offset = INVALID_ID,
         };
     }
     SASSERT(vertex_count > 0, "Cannot create a mesh without vertices");
@@ -193,7 +193,7 @@ void material_update_buffer(material_t* material, void* data, u32 size, u32 offs
 void renderer_set_skybox(material_t* material) {
     ecs_world_t* world = ecs_world_get();
     resource_t skybox_res = resource_loader_get_resource("assets/resources/models/skybox", false);
-    state->skybox = resource_instance_model(&skybox_res, 0, &material);
+    state->skybox = resource_instance_model(&skybox_res, 1, &material);
     state->skybox_material = material;
     ENTITY_SET_COMPONENT(world, state->skybox, material_t, *state->skybox_material);
 }

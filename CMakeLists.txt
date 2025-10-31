@@ -28,6 +28,7 @@ IF ((CMAKE_BUILD_TYPE MATCHES DEBUG) OR (SPARK_DEBUG))
 ENDIF()
 message("Compile flags: ${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS ${CMAKE_C_FLAGS})
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu23")
 
 # Define the link libraries
 if (SPARK_LINK_STATIC)

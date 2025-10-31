@@ -43,7 +43,7 @@ s32 s_random() {
         srand((u32)platform_get_absolute_time());
         rand_seeded = true;
     }
-    return random();
+    return rand();
 }
 
 s32 s_random_in_range(s32 min, s32 max) {
@@ -51,7 +51,7 @@ s32 s_random_in_range(s32 min, s32 max) {
         srand((u32)platform_get_absolute_time());
         rand_seeded = true;
     }
-    return (random() % (max - min + 1)) + min;
+    return (rand() % (max - min + 1)) + min;
 }
 
 f32 sf_random() {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Spark/renderer/material.h"
 #include "Spark/renderer/mesh.h"
 #include "Spark/types/aabb.h"
 typedef struct model {
@@ -10,8 +11,8 @@ typedef struct model {
     vec3 scale;
     quat rotation;
 
+    material_t* material;
     u16 child_count;
-    u16 material_index;
     struct model* children;
     struct model* next_child;
 } model_t;

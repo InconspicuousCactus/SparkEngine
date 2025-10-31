@@ -15,6 +15,7 @@
 #include "Spark/resources/resource_types.h"
 #include "Spark/systems/core_systems.h"
 #include "Spark/types/ecs_declarations.h"
+#include "Spark/ui/ui_systems.h"
 
 typedef enum : u8 {
     APPLICATION_STATE_OFF       = 0,
@@ -112,6 +113,7 @@ application_create(game_t* game_inst) {
     transform_system_initialize(world);
     camera_systems_initialize(world);
     render_system_initialize(world);
+    ui_systems_init(world);
 
     // Input
     input_initialize();

@@ -44,6 +44,7 @@ void freelist_destroy(freelist_t* allocator) {
 }
 
 void* freelist_allocate(freelist_t* allocator, u64 size) {
+    SASSERT(allocator->memory, "Freelist has not been initialized or was not assigned memory.");
     size = smax(size, 32);
 
     freelist_explicit_t* explicit = allocator->first_free_block;

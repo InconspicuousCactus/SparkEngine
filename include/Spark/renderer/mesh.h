@@ -4,7 +4,7 @@
 #include "Spark/ecs/entity.h"
 
 typedef struct mesh {
-    u32 internal_index;
+    u32 internal_offset;
 } mesh_t;
 
 extern ECS_COMPONENT_DECLARE(mesh_t);

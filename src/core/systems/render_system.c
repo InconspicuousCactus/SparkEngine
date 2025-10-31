@@ -1,4 +1,5 @@
 #include "Spark/containers/darray.h"
+#include "Spark/core/logging.h"
 #include "Spark/ecs/ecs.h"
 #include "Spark/ecs/ecs_world.h"
 #include "Spark/ecs/entity.h"
@@ -120,9 +121,9 @@ b32 sort_geometry(const void* a, const void* b) {
     //     return 1;
     // }
 
-    if (g1->mesh.internal_index < g2->mesh.internal_index) {
+    if (g1->mesh.internal_offset < g2->mesh.internal_offset) {
         return -1;
-    } else if (g1->mesh.internal_index > g2->mesh.internal_index) {
+    } else if (g1->mesh.internal_offset > g2->mesh.internal_offset) {
         return 1;
     }
 
@@ -250,7 +251,8 @@ void render_entities(ecs_iterator_t* iterator) {
             },
         };
 
-        shader_t* shader = shader_loader_get_shader(materials[i].shader_index);
+        shader_t* shader = materials[i].shader;
+        SASSERT(shader, "Material '%s' shader is null.", materials[i].name);
         darray_geometry_render_data_push(&render_state.render_data[shader->renderpass], render_data);
     }
 }
