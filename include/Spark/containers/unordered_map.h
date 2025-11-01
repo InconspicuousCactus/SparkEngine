@@ -29,7 +29,9 @@
     b8 name##_try_get(const name##_t* hashmap, key_type key, value_type* out_value);                       \
     value_type* name##_get(const name##_t* hashmap, key_type key);                                         
 
-#define hashmap_impl(name, key_type, value_type, hash_function, key_compare_function)                                      \
+// Key copy is a function in the form of void (key_type* dest, key_type* src);
+// If key_copy == NULL, the key wil take a simple copy (i.e.) dest = src;
+#define hashmap_impl(name, key_type, value_type, hash_function, key_compare_function, key_copy_function)                                      \
     darray_impl(name##_pair_t, name##_pair);                                                         \
     void name##_create(u32 capacity, name##_t* out_hashmap) {                                        \
         out_hashmap->capacity = capacity;                                                            \
@@ -65,15 +67,15 @@
                                                                                                      \
         name##_pair_t pair = {                                                                       \
             .value = value,                                                                          \
-            .key = key,                                                                              \
+            .key = key_copy_function(key), \
         };                                                                                           \
         darray_##name##_pair_push(&hashmap->pairs[index], pair);                                     \
     }                                                                                                \
-                                                                                                     \
+    \
     b8 name##_contains(const name##_t* hashmap, key_type key) {                                            \
         hash_t hash = hash_function(key);                                                            \
         u32 index = hash % hashmap->capacity;                                                        \
-                                                                                                     \
+        \
         darray_##name##_pair_t* pairs = &hashmap->pairs[index];                                      \
         for (u32 i = 0; i < pairs->count; i++) {                                                     \
             if (key_compare_function(pairs->data[i].key, key)) {                                                         \
@@ -82,11 +84,11 @@
         }                                                                                            \
         return false;                                                                                \
     }                                                                                                \
-                                                                                                     \
+    \
     b8 name##_try_get(const name##_t* hashmap, key_type key, value_type* out_value) {                      \
         hash_t hash = hash_function(key);                                                            \
         u32 index = hash % hashmap->capacity;                                                        \
-                                                                                                     \
+        \
         darray_##name##_pair_t* pairs = &hashmap->pairs[index];                                      \
         for (u32 i = 0; i < pairs->count; i++) {                                                     \
             if (key_compare_function(pairs->data[i].key, key)) {                                                         \
@@ -96,11 +98,11 @@
         }                                                                                            \
         return false;                                                                                \
     }                                                                                                \
-                                                                                                     \
+    \
     value_type* name##_get(const name##_t* hashmap, key_type key) {                                        \
         hash_t hash = hash_function(key);                                                            \
         u32 index = hash % hashmap->capacity;                                                        \
-                                                                                                     \
+        \
         darray_##name##_pair_t* pairs = &hashmap->pairs[index];                                      \
         for (u32 i = 0; i < pairs->count; i++) {                                                     \
             if (key_compare_function(pairs->data[i].key, key)) {                                                         \

@@ -12,6 +12,7 @@ typedef struct model {
     quat rotation;
 
     material_t* material;
+    u16 material_index;
     u16 child_count;
     struct model* children;
     struct model* next_child;

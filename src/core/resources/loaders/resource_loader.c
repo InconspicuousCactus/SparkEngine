@@ -23,7 +23,7 @@ darray_impl(resource_t, resource);
 darray_header(darray_resource_t, resource_set);
 
 hashmap_type(resource_map, const char*, resource_t);
-hashmap_impl(resource_map, const char*, resource_t, string_hash, string_compare);
+hashmap_impl(resource_map, const char*, resource_t, string_hash, string_compare, string_duplicate);
 
 typedef struct shader_loader_state {
     darray_u8_t resource_buffer;

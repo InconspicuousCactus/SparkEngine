@@ -107,13 +107,9 @@ application_create(game_t* game_inst) {
     // ECS
     ecs_world_initialize(&app_state->systems_allocator);
 
-    // Systems
+    // Core Systems
     ecs_world_t* world = ecs_world_get();
     ecs_register_types(world);
-    transform_system_initialize(world);
-    camera_systems_initialize(world);
-    render_system_initialize(world);
-    ui_systems_init(world);
 
     // Input
     input_initialize();
@@ -149,6 +145,13 @@ application_create(game_t* game_inst) {
 
     // Physics
     physics_backend_initialize(&app_state->systems_allocator);
+
+    // Other systems
+    transform_system_initialize(world);
+    camera_systems_initialize(world);
+    render_system_initialize(world);
+    ui_systems_init(world);
+
 
     // User Game
     if (!app_state->game_inst->initialize(game_inst)) {

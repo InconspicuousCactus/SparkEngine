@@ -23,11 +23,12 @@ void block_allocator_zero_unused_blocks(block_allocator_t* allocator);
 #define block_allocator_iterate(allocator, arg_name, function) \
 { \
     block_allocator_block_t* block = (allocator)->buffer; \
+    const u32 step_size = smax((allocator)->block_size, sizeof(block_allocator_block_t)); \
     for (u32 i = 0; i < (allocator)->block_count; i++) { \
         void* arg_name = block; \
         if (block->magic == BLOCK_ALLOCATOR_MAGIC) { \
             function \
         } \
-        block += (allocator)->block_size; \
+        block += step_size; \
     } \
 }

@@ -55,6 +55,8 @@ typedef struct renderer_backend {
 
     // Type Creation
     mesh_t (*create_mesh)(void* vertices, u32 vertex_count, u32 vertex_stride, void* indices, u32 index_count, u32 index_stride);
+    void (*destroy_mesh)(const mesh_t* mesh);
+
     shader_t (*creaet_shader)(shader_config_t* config);
     texture_t (*create_image_from_file)(const char* path, texture_filter_t filter);
     texture_t (*create_image_from_data)(const char* data, u32 widht, u32 height, u32 channels, texture_filter_t filter);

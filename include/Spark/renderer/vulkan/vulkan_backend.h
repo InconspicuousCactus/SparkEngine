@@ -14,6 +14,8 @@ b8 vulkan_renderer_draw_frame(render_packet_t* packet);
 b8 vulkan_renderer_end_frame();
 
 mesh_t     vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_size, const void* indices, u32 index_count, u32 index_stride);
+void       vulkan_renderer_destroy_mesh(const mesh_t* mesh);
+
 shader_t   vulkan_create_shader(shader_config_t* config);
 material_t vulkan_create_material(material_config_t* config);
 

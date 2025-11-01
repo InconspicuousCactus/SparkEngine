@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Spark/ecs/entity.h"
 #include "Spark/renderer/texture.h"
 
 typedef enum resource_type : u8 {
@@ -39,3 +40,12 @@ typedef struct texture_config {
     char path[TEXTURE_CONFIG_PATH_MAX_SIZE];
     texture_filter_t filter;
 } texture_config_t;
+
+struct texture;
+struct shader;
+struct material;
+
+struct texture*  resource_get_texture(resource_t* resource);
+struct shader*   resource_get_shader(resource_t* resource);
+struct material* resource_get_material(resource_t* resource);
+entity_t    resource_instance_model(resource_t* resource, u32 material_count, struct material** materials);

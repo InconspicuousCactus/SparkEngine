@@ -328,7 +328,7 @@ void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buf
     vulkan_renderpass_end(command_buffer);
 }
 
-void create_indirect_draw_commands(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, VkRect2D render_area, const renderpass_geometry_t* renderpass_geo, u32 renderpass_index, vulkan_indirect_render_info_t* indirect_info, u32* instance_offset, u32* draw_offset) {
+void create_indirect_draw_commands(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, VkRect2D render_area, const renderpass_geometry_t* renderpass_geo, builtin_renderpass_t renderpass_index, vulkan_indirect_render_info_t* indirect_info, u32* instance_offset, u32* draw_offset) {
     if (renderpass_geo->geometry_count <= 0) {
         return;
     }
@@ -357,6 +357,7 @@ void create_indirect_draw_commands(vulkan_renderpass_t* renderpass, vulkan_comma
     for (u32 i = 0, command_index = 0; i < renderpass_geo->geometry_count; i++) {
         instance_count++;
         geometry_render_data_t* geometry = &renderpass_geo->geometry[i];
+        SASSERT(geometry->mesh.internal_offset != INVALID_ID, "Cannot render invalid mesh");
         vulkan_mesh_t* mesh = context->mesh_allocator.buffer + geometry->mesh.internal_offset;
         vulkan_material_t* material = geometry->material->internal_data;
 
@@ -435,7 +436,7 @@ b8 vulkan_renderer_draw_frame(render_packet_t* packet) {
     mat4 skybox_view_project_matrix = mat4_mul(mat4_inverse(rotation), packet->projection_matrix);
 
 
-    const mat4 ui_project_matrix = mat4_mul(mat4_scale((vec3) {.x = 2, .y = 2, .z = 1}), mat4_translation((vec3) { .x = -1, .y = -1}));
+    const mat4 ui_project_matrix = mat4_mul(mat4_scale((vec3) {.x = 2.0f / context->screen_width, .y = 2.0f / context->screen_height, .z = 1}), mat4_translation((vec3) { .x = -1, .y = -1}));
     vulkan_buffer_update(context, &context->uniform_buffer_skybox, &skybox_view_project_matrix, sizeof(mat4), 0);
     vulkan_buffer_update(context, &context->uniform_buffer_3d, &view_project_matrix, sizeof(mat4), 0);
     vulkan_buffer_update(context, &context->uniform_buffer_ui, &ui_project_matrix, sizeof(mat4), 0);
@@ -490,8 +491,6 @@ b8 vulkan_renderer_end_frame() {
 }
 
 mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_stride, const void* indices, u32 index_count, u32 index_stride) {
-    SASSERT(vertex_stride > 0, "Cannot add vertices with stride of 0.");
-    SASSERT(index_stride > 0,  "Cannot add indices with stride of 0.");
     // SDEBUG("Creating mesh: Vertex count: %d, Stride: %d, Offset: %d, Index count: %d, Stride: %d, Offset: %d", vertex_count, vertex_stride, context->vertex_buffer_offset, index_count, index_stride, context->index_buffer_offset);
     SASSERT(index_stride == 4, "Short index not implemented.");
 
@@ -521,8 +520,6 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
     // SDEBUG("\tIndext Start: %d, Vertex Start: %d", internal_mesh.index_start, internal_mesh.vertex_start);
 
     // Set buffers
-    SDEBUG("Out vertices: %p", out_vertices);
-    SDEBUG("Out indices %p copying %d bytes", out_indices);
     scopy_memory(out_vertices, vertices, vertex_count * vertex_stride);
     scopy_memory(out_indices, indices, index_count * index_stride);
 
@@ -534,8 +531,8 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
     return mesh;
 }
 
-void vulkan_destroy_mesh(mesh_t mesh) {
-    vulkan_mesh_t* _mesh = context->mesh_allocator.buffer + mesh.internal_offset;
+void vulkan_renderer_destroy_mesh(const mesh_t* mesh) {
+    vulkan_mesh_t* _mesh = context->mesh_allocator.buffer + mesh->internal_offset;
     freelist_free(&context->vertex_buffer_freelist, context->vertex_buffer_freelist.memory + _mesh->vertex_allocation);
     freelist_free(&context->index_buffer_freelist, context->index_buffer_freelist.memory + _mesh->index_allocation);
     block_allocator_free(&context->mesh_allocator, _mesh);
@@ -585,24 +582,34 @@ shader_t vulkan_create_shader(shader_config_t* config) {
             .data = &context->instance_buffer,
         },
     };
-    shader_resource_t ui_uniform_resource = {
-        .layout = {
-            .binding = 0,
-            .set = 0,
-            .type = SHADER_RESOURCE_UNIFORM_BUFFER,
+    shader_resource_t ui_uniform_resources[] = {
+        {
+            .layout = {
+                .binding = 0,
+                .set = 0,
+                .type = SHADER_RESOURCE_UNIFORM_BUFFER,
+            },
+            .data = &context->uniform_buffer_ui,
         },
-        .data = &context->uniform_buffer_ui,
+        {
+            .layout = {
+                .binding = 1,
+                .set = 0,
+                .type = SHADER_RESOURCE_SOTRAGE_BUFFER,
+            },
+            .data = &context->instance_buffer,
+        },
     };
 
     switch (config->type) {
         case BUILTIN_RENDERPASS_SKYBOX:
-            vulkan_shader_bind_resources(context, shader, 0, 1, skybox_uniform_resource);
+            vulkan_shader_bind_resources(context, shader, 0, sizeof(skybox_uniform_resource) / sizeof(shader_resource_t), skybox_uniform_resource);
             break;
         case BUILTIN_RENDERPASS_WORLD:
-            vulkan_shader_bind_resources(context, shader, 0, 2, world_uniform_resource);
+            vulkan_shader_bind_resources(context, shader, 0, sizeof(world_uniform_resource) / sizeof(shader_resource_t), world_uniform_resource);
             break;
         case BUILTIN_RENDERPASS_UI:
-            vulkan_shader_bind_resources(context, shader, 0, 1, &ui_uniform_resource);
+            vulkan_shader_bind_resources(context, shader, 0, sizeof(ui_uniform_resources) / sizeof(shader_resource_t), ui_uniform_resources);
             break;
         case BUILTIN_RENDERPASS_ENUM_MAX:
             break;
@@ -651,7 +658,7 @@ material_t vulkan_create_material(material_config_t* config) {
     // Create descriptor sets
     vulkan_shader_t* internal_shader = context->default_shader;
     shader_t* shader = shader_loader_get_shader(0);
-    
+
     if (config->shader_path[0] != 0) {
         resource_t shader_res = resource_loader_get_resource(config->shader_path, true);
         shader = resource_get_shader(&shader_res);

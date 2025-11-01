@@ -58,6 +58,7 @@ b8 renderer_initialize(const char* application_name, struct platform_state* plat
                 .create_material        = vulkan_create_material,
                 .resize                 = vulkan_renderer_resize,
                 .material_update_buffer = vulkan_renderer_material_update_buffer,
+                .destroy_mesh           = vulkan_destroy_mesh
             };
 
         break;
@@ -114,7 +115,11 @@ b8 renderer_draw_frame(render_packet_t* packet) {
 }
 
 mesh_t renderer_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_stride, const void* indices, u32 index_count, u32 index_stride) {
+    SASSERT(vertex_stride > 0, "Cannot create mesh, vertex stride must be greater than 0.");
+    SASSERT(index_stride > 0, "Cannot create mesh, index stride must be greater than 0.");
+
     if (index_count <= 0 || vertex_count <= 0) {
+        SERROR("Cannot create mesh: Invalid vertex or index count. Vertices: %d, Indices: %d", vertex_count, index_count);
         return (mesh_t) {
             .internal_offset = INVALID_ID,
         };
@@ -141,6 +146,10 @@ material_t renderer_create_material(material_config_t* config) {
 
 void material_update_buffer(material_t* material, void* data, u32 size, u32 offset) {
     return vulkan_renderer_material_update_buffer(material, data, size, offset);
+}
+
+void renderer_destroy_mesh(const mesh_t* mesh) {
+    vulkan_renderer_destroy_mesh(mesh);
 }
 
 #else
@@ -193,7 +202,7 @@ void material_update_buffer(material_t* material, void* data, u32 size, u32 offs
 void renderer_set_skybox(material_t* material) {
     ecs_world_t* world = ecs_world_get();
     resource_t skybox_res = resource_loader_get_resource("assets/resources/models/skybox", false);
-    state->skybox = resource_instance_model(&skybox_res, 1, &material);
+    state->skybox = resource_instance_model(&skybox_res, 0, &material);
     state->skybox_material = material;
     ENTITY_SET_COMPONENT(world, state->skybox, material_t, *state->skybox_material);
 }

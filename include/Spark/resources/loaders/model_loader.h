@@ -12,4 +12,4 @@ void model_loader_shutdown();
 resource_t pvt_model_loader_load_text_resource(const char* text, u32 length, b8 auto_delete);
 resource_t pvt_model_loader_load_binary_resource(void* binary_data, u32 size, b8 auto_delete);
 model_t* model_loader_get_model(u32 index);
-entity_t model_loader_instance_model(u32 index, u32 material_count, material_t** materials);
+entity_t model_loader_instance_model(u32 index, u32 material_override_count, material_t* material_overrides[static material_override_count]);

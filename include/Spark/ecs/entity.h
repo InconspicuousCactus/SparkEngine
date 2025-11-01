@@ -12,9 +12,9 @@ typedef u32 ecs_component_id;
 
 darray_header(entity_t, entity);
 
-#define ENTITY_SET_COMPONENT(world, entity, component, component_value) \
+#define ENTITY_SET_COMPONENT(world, entity, component, ...) \
 { \
-    component __val__ = (component)component_value; \
+    component __val__ = (component)__VA_ARGS__; \
     entity_set_component(world, entity, ECS_COMPONENT_ID(component), &__val__, sizeof(component)); \
 } 
 #define ENTITY_ADD_COMPONENT(world, entity, component) \

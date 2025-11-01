@@ -13,6 +13,7 @@ b8   renderer_draw_frame(render_packet_t* packet);
 void renderer_on_resize(u16 width, u16 height);
 
 mesh_t     renderer_create_mesh           (const void* vertices, u32 vertex_count, u32 vertex_stride, const void* indices, u32 index_count, u32 index_stride);
+void       renderer_destroy_mesh          (const mesh_t* mesh);
 shader_t   renderer_create_shader         (shader_config_t* config);
 texture_t  renderer_create_image_from_path(const char* path, texture_filter_t filter);
 texture_t  renderer_create_image_from_data(const char* data, u32 width, u32 height, u32 channels, texture_filter_t filter);

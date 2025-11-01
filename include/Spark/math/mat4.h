@@ -10,7 +10,7 @@ typedef union mat4_u {
     vec4 cols[4];
 } mat4;
 
-static const mat4 pvt_identity_matrix = {
+constexpr mat4 pvt_identity_matrix = {
     .data[0] = 1.0f,
     .data[5] = 1.0f,
     .data[10] = 1.0f,

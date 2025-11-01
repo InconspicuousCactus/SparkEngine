@@ -8,7 +8,8 @@ darray_impl(entity_archetype_t, entity_archetype);
 darray_impl(entity_archetype_t*, entity_archetype_ptr);
 darray_impl(ecs_system_t, ecs_system);
 darray_impl(ecs_component_t, ecs_component);
-hashmap_impl(entity_archetype_ptr_map, ecs_component_id, entity_archetype_t*, hash_passthrough, u64_compare);
-hashmap_impl(component_singleton_map, ecs_component_id, entity_t, hash_passthrough, u64_compare);
+
+hashmap_impl(entity_archetype_ptr_map, ecs_component_id, entity_archetype_t*, hash_passthrough, u64_compare, hash_passthrough);
+hashmap_impl(component_singleton_map, ecs_component_id, entity_t, hash_passthrough, u64_compare, hash_passthrough);
 
 darray_impl(entity_t, entity);

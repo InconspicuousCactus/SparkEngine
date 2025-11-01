@@ -185,6 +185,7 @@ resource_t create_model_from_config(model_config_t* config) {
                     mesh->index_stride);
 
             model->mesh = out_mesh;
+            model->material_index = mesh->material_index;
             model->material = materials[mesh->material_index];
             model->bounds = mesh->bounds;
         } else {
@@ -215,7 +216,11 @@ entity_t load_model_entity(ecs_world_t* world, model_t* model, entity_t parent, 
     if (model->mesh.internal_offset != INVALID_ID) {
         ENTITY_SET_COMPONENT(world, e, mesh_t, model->mesh);
 
-        ENTITY_SET_COMPONENT(world, e, material_t, *model->material);
+        if (model->material_index <= material_count) {
+            ENTITY_SET_COMPONENT(world, e, material_t, *model->material);
+        } else {
+            ENTITY_SET_COMPONENT(world, e, material_t, *materials[model->material_index]);
+        }
         ENTITY_SET_COMPONENT(world, e, aabb_t, model->bounds);
     }
 
@@ -224,19 +229,19 @@ entity_t load_model_entity(ecs_world_t* world, model_t* model, entity_t parent, 
     return e;
 }
 
-entity_t load_model_entity_recursive(ecs_world_t* world, model_t* node, entity_t parent, u32 material_count, material_t** materials) {
-    entity_t e = load_model_entity(world, node, parent, material_count, materials);
+entity_t load_model_entity_recursive(ecs_world_t* world, model_t* node, entity_t parent, u32 material_override_count, material_t* material_overrides[static material_override_count]) {
+    entity_t e = load_model_entity(world, node, parent, material_override_count, material_overrides);
 
     model_t* child = node->children;
     while (child) {
-        load_model_entity_recursive(world, child, e, material_count, materials);
+        load_model_entity_recursive(world, child, e, material_override_count, material_overrides);
         child = child->next_child;
     }
 
     return e;
 }
 
-entity_t model_loader_instance_model(u32 index, u32 material_count, material_t** materials) {
+entity_t model_loader_instance_model(u32 index, u32 material_override_count, material_t* material_overrides[static material_override_count]) {
     ecs_world_t* world = ecs_world_get();
-    return load_model_entity_recursive(world, state->models.data[index], INVALID_ID, material_count, materials);
+    return load_model_entity_recursive(world, state->models.data[index], INVALID_ID, material_override_count, material_overrides);
 }

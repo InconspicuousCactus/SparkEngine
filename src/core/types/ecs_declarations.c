@@ -9,6 +9,7 @@
 #include "Spark/types/transforms.h"
 #include "Spark/ecs/components/entity_child.h"
 #include "Spark/ecs/components/entity_parent.h"
+#include "Spark/ui/anchor_2d.h"
 #include "Spark/ui/text.h"
 
 // Rendering
@@ -40,6 +41,7 @@ ECS_COMPONENT_DECLARE(velocity_t);
 
 // UI 
 ECS_COMPONENT_DECLARE(text_t);
+ECS_COMPONENT_DECLARE(anchor_2d_t);
 
 void ecs_register_types(ecs_world_t* world) {
     // Rendering
@@ -75,4 +77,5 @@ void ecs_register_types(ecs_world_t* world) {
 
     // UI
     ECS_COMPONENT_DEFINE(world, text_t);
+    ECS_COMPONENT_DEFINE(world, anchor_2d_t);
 }
