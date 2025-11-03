@@ -2,18 +2,18 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
      // int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
 #include "Spark/random/noise/simplex.h"
-#include "stb_image_write.h"
+// #include "stb_image_write.h"
 
 #define SAMPLE_SIZE 512
 
-    s32 noise[SAMPLE_SIZE * SAMPLE_SIZE];
-    u8 pixels[SAMPLE_SIZE * SAMPLE_SIZE];
-    char line[SAMPLE_SIZE + 1] = {};
-int main() {
+s32 noise[SAMPLE_SIZE * SAMPLE_SIZE];
+u8 pixels[SAMPLE_SIZE * SAMPLE_SIZE];
+char line[SAMPLE_SIZE + 1] = {};
 
+void noise_tests() {
     // simplex_2d_int_simd((vec2i) { }, (vec2i) {SAMPLE_SIZE, SAMPLE_SIZE}, (void*)noise);
 
-    const f32 float_scale = .01f;
+    // const f32 float_scale = .01f;
     const s32 int_scale = 1;
     int i = 0;
     for (u32 y = 0; y < SAMPLE_SIZE; y++) {
@@ -34,5 +34,5 @@ int main() {
         // SDEBUG("Line: %s", line);
     }
 
-    stbi_write_png("Int2D_Simd.png", SAMPLE_SIZE, SAMPLE_SIZE, 1, pixels, SAMPLE_SIZE);
+    // stbi_write_png("Int2D_Simd.png", SAMPLE_SIZE, SAMPLE_SIZE, 1, pixels, SAMPLE_SIZE);
 }

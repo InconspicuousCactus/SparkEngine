@@ -1,9 +1,11 @@
-#include "Spark/containers/unordered_map.h"
+#include "Spark/utils/hashing.h"
+#include <Spark/containers/unordered_map.h>
+#include <Spark/defines.h>
 
 hashmap_type(hashmap, u64, u64);
-hashmap_impl(hashmap, u64, u64, hash_passthrough, u64_compare);
+hashmap_impl(hashmap, u64, u64, hash_passthrough, u64_compare, hash_passthrough);
 
-int main() {
+void hashmap_tests() {
     initialize_memory();
     const u32 value_count = 10000;
     u64 rand_values[value_count];
@@ -26,7 +28,6 @@ int main() {
                     rand_keys[i], 
                     *hashmap_get(&map, rand_keys[i]), 
                     rand_values[i]);
-            return false;
         }
     }
 

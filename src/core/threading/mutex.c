@@ -24,7 +24,6 @@ void mutex_destroy(spark_mutex_t* out_mutex) {
     }
 
     SERROR("Failed to destroy mutex: %p", out_mutex->internal_data);
-
 }
 
 void mutex_lock(spark_mutex_t mutex) {

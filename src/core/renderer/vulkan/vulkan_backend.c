@@ -491,6 +491,7 @@ b8 vulkan_renderer_end_frame() {
 }
 
 mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_stride, const void* indices, u32 index_count, u32 index_stride) {
+    SDEBUG("Creating mesh.");
     // SDEBUG("Creating mesh: Vertex count: %d, Stride: %d, Offset: %d, Index count: %d, Stride: %d, Offset: %d", vertex_count, vertex_stride, context->vertex_buffer_offset, index_count, index_stride, context->index_buffer_offset);
     SASSERT(index_stride == 4, "Short index not implemented.");
 
@@ -500,10 +501,14 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
     // VK_CHECK(vkMapMemory(context->logical_device, context->index_buffer.memory, 0, VULKAN_CONTEXT_INDEX_BUFFER_SIZE, 0, &memory));
 
     // Pad the vertex buffer so that shaders can have unique vertex layouts
+    freelist_check_health(&context->vertex_buffer_freelist);
+    freelist_check_health(&context->index_buffer_freelist);
     void* out_vertices = freelist_allocate(&context->vertex_buffer_freelist, vertex_stride * (vertex_count + 1));
     void* out_indices = freelist_allocate(&context->index_buffer_freelist, index_stride * (index_count + 1));
-    SASSERT(out_vertices, "Failed to allocate vertex array for mesh.");
-    SASSERT(out_indices, "Failed to allocate index array for mesh.");
+    freelist_check_health(&context->vertex_buffer_freelist);
+    freelist_check_health(&context->index_buffer_freelist);
+    SASSERT(out_vertices, "Failed to allocate %d bytes for vertex array for mesh.", vertex_count * vertex_stride);
+    SASSERT(out_indices, "Failed to allocate %d bytes for index array for mesh.", index_count * index_stride);
 
     u32 index_padding = (out_indices - context->index_buffer_freelist.memory) % index_stride;
     u32 vertex_padding = (out_vertices - context->vertex_buffer_freelist.memory) % vertex_stride;
@@ -532,6 +537,7 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
 }
 
 void vulkan_renderer_destroy_mesh(const mesh_t* mesh) {
+    SDEBUG("Freeing mesh.");
     vulkan_mesh_t* _mesh = context->mesh_allocator.buffer + mesh->internal_offset;
     freelist_free(&context->vertex_buffer_freelist, context->vertex_buffer_freelist.memory + _mesh->vertex_allocation);
     freelist_free(&context->index_buffer_freelist, context->index_buffer_freelist.memory + _mesh->index_allocation);

@@ -28,6 +28,7 @@ void text_update(ecs_world_t* world, entity_t entity, text_t text) {
     // Try to delete old mesh
     mesh_t* mesh = NULL;
     if (ENTITY_TRY_GET_COMPONENT(world, entity, mesh_t, &mesh)) {
+        SDEBUG("Freeing old text mesh.");
         renderer_destroy_mesh(mesh);
     }
 

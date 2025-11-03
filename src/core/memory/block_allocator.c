@@ -36,7 +36,7 @@ void* block_allocator_allocate(block_allocator_t* allocator) {
 }
 
 void block_allocator_free(block_allocator_t* allocator, void* block) {
-    SASSERT(block >= allocator->buffer && block < allocator->buffer + allocator->block_size * allocator->block_size, 
+    SASSERT(block >= allocator->buffer && block < allocator->buffer + allocator->block_count * allocator->block_size, 
             "Cannot free block %p: Outsize of memory range (%p - %p)", 
             block, 
             allocator->buffer, 

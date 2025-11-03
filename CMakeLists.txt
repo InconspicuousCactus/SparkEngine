@@ -82,11 +82,11 @@ ELSE()
 ENDIF()
 
 # Tests
-# if (SPARK_BUILD_TESTS) 
-#     add_subdirectory(tests)
-#     target_include_directories(spark_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-#     target_link_libraries(spark_tests PRIVATE SparkCore)
-# endif()
+if (SPARK_BUILD_TESTS) 
+    add_subdirectory(tests)
+    target_include_directories(spark_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_link_libraries(spark_tests PRIVATE SparkCore)
+endif()
 
 # Create Engine
 IF (NOT SPARK_CORE_ONLY)
