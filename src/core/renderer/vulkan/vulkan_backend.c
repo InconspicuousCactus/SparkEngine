@@ -332,7 +332,6 @@ void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buf
 }
 
 void create_indirect_draw_commands(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, VkRect2D render_area, const renderpass_geometry_t* renderpass_geo, builtin_renderpass_t renderpass_index, vulkan_indirect_render_info_t* indirect_info, u32* instance_offset, u32* draw_offset) {
-    SDEBUG("Renderpass %d has %d entities.", renderpass_index, renderpass_geo->geometry_count);
     if (renderpass_geo->geometry_count <= 0) {
         return;
     }
@@ -456,7 +455,7 @@ b8 vulkan_renderer_draw_frame(render_packet_t* packet) {
 
     u32 instance_offset = 0;
     u32 command_offset = 0;
-    for (u32 renderpass_index = 0; renderpass_index < 1; renderpass_index++) {
+    for (u32 renderpass_index = 0; renderpass_index < BUILTIN_RENDERPASS_ENUM_MAX; renderpass_index++) {
         const renderpass_geometry_t* renderpass = &packet->renderpass_geometry[renderpass_index];
         create_indirect_draw_commands(&context->renderpasses[renderpass_index], command_buffer, render_area, renderpass, renderpass_index, indirect_info, &instance_offset, &command_offset);
 
@@ -527,11 +526,9 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
     internal_mesh->index_allocation = out_indices - context->index_buffer_freelist.memory;
     // SDEBUG("\tIndext Start: %d, Vertex Start: %d", internal_mesh.index_start, internal_mesh.vertex_start);
 
-    SDEBUG("Creating mesh with alloc 0x%x, vstride: 0x%x - vpad: 0x%x, Vertex Index: %d", internal_mesh->vertex_allocation, vertex_stride, vertex_padding, internal_mesh->vertex_start);
-
     // Set buffers
-    scopy_memory(out_vertices, vertices, vertex_count * vertex_stride);
-    scopy_memory(out_indices, indices, index_count * index_stride);
+    scopy_memory(out_vertices + vertex_padding, vertices, vertex_count * vertex_stride);
+    scopy_memory(out_indices + index_padding, indices, index_count * index_stride);
 
     // Get new index
     mesh_t mesh = {
@@ -569,7 +566,7 @@ shader_t vulkan_create_shader(shader_config_t* config) {
     vulkan_shader_create(context, renderpass, 0, config->attribute_count, config->attributes, config->resource_count, config->layout, true, shader);
 
     // Bind shader globals
-     shader_resource_t skybox_uniform_resource[] = { 
+    shader_resource_t skybox_uniform_resource[] = { 
         {
             .layout = {
                 .binding = 0,
