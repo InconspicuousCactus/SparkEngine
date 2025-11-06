@@ -40,6 +40,12 @@ typedef struct render_packet {
     renderpass_geometry_t renderpass_geometry[BUILTIN_RENDERPASS_ENUM_MAX];
 } render_packet_t;
 
+typedef struct renderer_defaults {
+    const material_t* material;
+    const shader_t* shader;
+    const mesh_t* mesh;
+} renderer_defaults_t;
+
 typedef struct renderer_backend {
     struct platform_state* plat_state;
 
@@ -61,6 +67,9 @@ typedef struct renderer_backend {
     texture_t (*create_image_from_file)(const char* path, texture_filter_t filter);
     texture_t (*create_image_from_data)(const char* data, u32 widht, u32 height, u32 channels, texture_filter_t filter);
     material_t (*create_material)(material_config_t* config);
+
+    // Default values
+    const renderer_defaults_t (*get_default_types)(void);
 
     // Resource specific functions
     // Materials

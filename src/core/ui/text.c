@@ -28,13 +28,12 @@ void text_update(ecs_world_t* world, entity_t entity, text_t text) {
     // Try to delete old mesh
     mesh_t* mesh = NULL;
     if (ENTITY_TRY_GET_COMPONENT(world, entity, mesh_t, &mesh)) {
-        SDEBUG("Freeing old text mesh.");
         renderer_destroy_mesh(mesh);
     }
 
     // Create new mesh
     constexpr u32 max_vertex_count = 8192;
-    static vertex_2d vertices[max_vertex_count] = {};
+    static vertex_2d_t vertices[max_vertex_count] = {};
 
     constexpr u32 max_index_count = 8192 * 3;
     static u32 indices[max_index_count] = {};
@@ -68,7 +67,7 @@ void text_update(ecs_world_t* world, entity_t entity, text_t text) {
             .y = (f32)(c / 16) / 16.0f,
         };
 
-        vertices[vertex_count + 0] = (vertex_2d) {
+        vertices[vertex_count + 0] = (vertex_2d_t) {
                 .position = {
                     .x = 0 + x_offset,
                     .y = 0 + y_offset,
@@ -79,7 +78,7 @@ void text_update(ecs_world_t* world, entity_t entity, text_t text) {
                 },
             };
 
-        vertices[vertex_count + 1] = (vertex_2d) {
+        vertices[vertex_count + 1] = (vertex_2d_t) {
                 .position = {
                     .x = 0 + x_offset,
                     .y = char_size + y_offset,
@@ -90,7 +89,7 @@ void text_update(ecs_world_t* world, entity_t entity, text_t text) {
                 },
             };
 
-        vertices[vertex_count + 2] = (vertex_2d) {
+        vertices[vertex_count + 2] = (vertex_2d_t) {
                 .position = {
                     .x = char_size + x_offset,
                     .y = 0 + y_offset,
@@ -101,7 +100,7 @@ void text_update(ecs_world_t* world, entity_t entity, text_t text) {
                 },
             };
 
-        vertices[vertex_count + 3] = (vertex_2d) {
+        vertices[vertex_count + 3] = (vertex_2d_t) {
                 .position = {
                     .x = char_size + x_offset,
                     .y = char_size + y_offset,
@@ -125,6 +124,6 @@ void text_update(ecs_world_t* world, entity_t entity, text_t text) {
         index_count += 6;
     }
 
-    mesh_t new_mesh = renderer_create_mesh(vertices, vertex_count, sizeof(vertex_2d), indices, index_count, sizeof(u32));
+    mesh_t new_mesh = renderer_create_mesh(vertices, vertex_count, sizeof(vertex_2d_t), indices, index_count, sizeof(u32));
     ENTITY_SET_COMPONENT(world, entity, mesh_t, new_mesh);
 }

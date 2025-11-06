@@ -25,3 +25,4 @@ texture_t vulkan_create_image_from_data(const char* data, u32 width, u32 height,
 vec2 vulkan_get_screen_size();
 
 void vulkan_renderer_material_update_buffer(material_t* material, void* data, u32 size, u32 offset);
+const renderer_defaults_t vulkan_get_default_types();

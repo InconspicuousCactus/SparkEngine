@@ -185,11 +185,14 @@ b8 vulkan_renderer_initialize(const char* application_name, struct platform_stat
     block_allocator_create(1024, sizeof(vulkan_buffer_t), &context->shader_buffer_allocator);
 
     resource_t default_shader_res = resource_loader_get_resource("assets/shaders/default", true);
-    shader_t* shader = resource_get_shader(&default_shader_res);
-    context->default_shader = (vulkan_shader_t*)context->shader_allocator.buffer + shader->internal_offset;
+    shader_t* default_shader = resource_get_shader(&default_shader_res);
+    context->default_types.shader = default_shader;
+    context->default_shader = (vulkan_shader_t*)context->shader_allocator.buffer + context->default_types.shader->internal_offset;
 
     resource_t default_mat_res = resource_loader_get_resource("assets/resources/materials/default", true);
-    context->default_material = resource_get_material(&default_mat_res)->internal_data;
+    material_t* default_material = resource_get_material(&default_mat_res);
+    default_material->shader = default_shader;
+    context->default_types.material = default_material;
 
     STRACE("Created vulkan renderer");
     return true;
@@ -329,6 +332,7 @@ void render_geometry_in_pass(vulkan_renderpass_t* renderpass, vulkan_command_buf
 }
 
 void create_indirect_draw_commands(vulkan_renderpass_t* renderpass, vulkan_command_buffer_t* command_buffer, VkRect2D render_area, const renderpass_geometry_t* renderpass_geo, builtin_renderpass_t renderpass_index, vulkan_indirect_render_info_t* indirect_info, u32* instance_offset, u32* draw_offset) {
+    SDEBUG("Renderpass %d has %d entities.", renderpass_index, renderpass_geo->geometry_count);
     if (renderpass_geo->geometry_count <= 0) {
         return;
     }
@@ -432,11 +436,15 @@ b8 vulkan_renderer_draw_frame(render_packet_t* packet) {
     mat4 rotation = quat_to_mat4(packet->view_rotation);
     mat4 local = mat4_inverse(mat4_mul(rotation, translation));
 
-    mat4 view_project_matrix = mat4_mul(local, packet->projection_matrix);
-    mat4 skybox_view_project_matrix = mat4_mul(mat4_inverse(rotation), packet->projection_matrix);
+    const mat4 view_project_matrix = mat4_mul(local, packet->projection_matrix);
+    const mat4 skybox_view_project_matrix = mat4_mul(mat4_inverse(rotation), packet->projection_matrix);
 
+    mat4 ui_project_matrix = mat4_scale((vec3) {.x = 1.0f / context->screen_width, .y = 1.0f / context->screen_height, .z = 1});
+    // ui_project_matrix = mat4_mul(ui_project_matrix, mat4_translation((vec3) { -1, -1, 0}));
+    // ui_project_matrix = mat4_mul(ui_project_matrix, mat4_scale((vec3) { 2, 2, 1}));
+    // ui_project_matrix = mat4_mul(ui_project_matrix, );
+    // const mat4 ui_project_matrix = mat4_mul(mat4_translation((vec3) { .x = -1, .y = -1}), );
 
-    const mat4 ui_project_matrix = mat4_mul(mat4_scale((vec3) {.x = 2.0f / context->screen_width, .y = 2.0f / context->screen_height, .z = 1}), mat4_translation((vec3) { .x = -1, .y = -1}));
     vulkan_buffer_update(context, &context->uniform_buffer_skybox, &skybox_view_project_matrix, sizeof(mat4), 0);
     vulkan_buffer_update(context, &context->uniform_buffer_3d, &view_project_matrix, sizeof(mat4), 0);
     vulkan_buffer_update(context, &context->uniform_buffer_ui, &ui_project_matrix, sizeof(mat4), 0);
@@ -448,7 +456,7 @@ b8 vulkan_renderer_draw_frame(render_packet_t* packet) {
 
     u32 instance_offset = 0;
     u32 command_offset = 0;
-    for (u32 renderpass_index = 0; renderpass_index < BUILTIN_RENDERPASS_ENUM_MAX; renderpass_index++) {
+    for (u32 renderpass_index = 0; renderpass_index < 1; renderpass_index++) {
         const renderpass_geometry_t* renderpass = &packet->renderpass_geometry[renderpass_index];
         create_indirect_draw_commands(&context->renderpasses[renderpass_index], command_buffer, render_area, renderpass, renderpass_index, indirect_info, &instance_offset, &command_offset);
 
@@ -491,7 +499,6 @@ b8 vulkan_renderer_end_frame() {
 }
 
 mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_stride, const void* indices, u32 index_count, u32 index_stride) {
-    SDEBUG("Creating mesh.");
     // SDEBUG("Creating mesh: Vertex count: %d, Stride: %d, Offset: %d, Index count: %d, Stride: %d, Offset: %d", vertex_count, vertex_stride, context->vertex_buffer_offset, index_count, index_stride, context->index_buffer_offset);
     SASSERT(index_stride == 4, "Short index not implemented.");
 
@@ -501,12 +508,8 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
     // VK_CHECK(vkMapMemory(context->logical_device, context->index_buffer.memory, 0, VULKAN_CONTEXT_INDEX_BUFFER_SIZE, 0, &memory));
 
     // Pad the vertex buffer so that shaders can have unique vertex layouts
-    freelist_check_health(&context->vertex_buffer_freelist);
-    freelist_check_health(&context->index_buffer_freelist);
     void* out_vertices = freelist_allocate(&context->vertex_buffer_freelist, vertex_stride * (vertex_count + 1));
     void* out_indices = freelist_allocate(&context->index_buffer_freelist, index_stride * (index_count + 1));
-    freelist_check_health(&context->vertex_buffer_freelist);
-    freelist_check_health(&context->index_buffer_freelist);
     SASSERT(out_vertices, "Failed to allocate %d bytes for vertex array for mesh.", vertex_count * vertex_stride);
     SASSERT(out_indices, "Failed to allocate %d bytes for index array for mesh.", index_count * index_stride);
 
@@ -524,6 +527,8 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
     internal_mesh->index_allocation = out_indices - context->index_buffer_freelist.memory;
     // SDEBUG("\tIndext Start: %d, Vertex Start: %d", internal_mesh.index_start, internal_mesh.vertex_start);
 
+    SDEBUG("Creating mesh with alloc 0x%x, vstride: 0x%x - vpad: 0x%x, Vertex Index: %d", internal_mesh->vertex_allocation, vertex_stride, vertex_padding, internal_mesh->vertex_start);
+
     // Set buffers
     scopy_memory(out_vertices, vertices, vertex_count * vertex_stride);
     scopy_memory(out_indices, indices, index_count * index_stride);
@@ -537,11 +542,15 @@ mesh_t vulkan_create_mesh(const void* vertices, u32 vertex_count, u32 vertex_str
 }
 
 void vulkan_renderer_destroy_mesh(const mesh_t* mesh) {
-    SDEBUG("Freeing mesh.");
     vulkan_mesh_t* _mesh = context->mesh_allocator.buffer + mesh->internal_offset;
     freelist_free(&context->vertex_buffer_freelist, context->vertex_buffer_freelist.memory + _mesh->vertex_allocation);
     freelist_free(&context->index_buffer_freelist, context->index_buffer_freelist.memory + _mesh->index_allocation);
     block_allocator_free(&context->mesh_allocator, _mesh);
+
+// #ifdef SPARK_DEBUG
+//     szero_memory(context->vertex_buffer_freelist.memory + _mesh->vertex_allocation, _mesh->vertex_stride * _mesh->vertex_count);
+//     szero_memory(context->index_buffer_freelist.memory + _mesh->index_allocation, _mesh->index_count * sizeof(u32));
+// #endif
 }
 
 shader_t vulkan_create_shader(shader_config_t* config) {
@@ -560,7 +569,7 @@ shader_t vulkan_create_shader(shader_config_t* config) {
     vulkan_shader_create(context, renderpass, 0, config->attribute_count, config->attributes, config->resource_count, config->layout, true, shader);
 
     // Bind shader globals
-    shader_resource_t skybox_uniform_resource[] = { 
+     shader_resource_t skybox_uniform_resource[] = { 
         {
             .layout = {
                 .binding = 0,
@@ -1276,7 +1285,7 @@ void create_renderpasses() {
         }
     };
 
-    vulkan_renderpass_create(context, clear_color, true, true, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_SKYBOX]);
+    vulkan_renderpass_create(context, clear_color, false, true, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_SKYBOX]);
     vulkan_renderpass_create(context, clear_color, true, false,   context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_WORLD]); 
     vulkan_renderpass_create(context, clear_color, false, false, context->screen_width, context->screen_height, &context->renderpasses[BUILTIN_RENDERPASS_UI]);
 }
@@ -1284,4 +1293,8 @@ void create_renderpasses() {
 void vulkan_renderer_material_update_buffer(material_t* material, void* data, u32 size, u32 offset) {
     vulkan_material_t* vulkan_material = material->internal_data;
     vulkan_material_update_buffer(context, data, size, offset, vulkan_material);
+}
+
+const renderer_defaults_t vulkan_get_default_types() {
+    return context->default_types;
 }

@@ -67,7 +67,6 @@ void* freelist_allocate(freelist_t* allocator, u64 size) {
 
     u32 padding = 16 - (size % 16);
     if (padding) {
-    SDEBUG("Padding 0x%x bytes: was 0x%x, now 0x%x bytes", padding, size, size + padding);
         size += padding;
     }
 
@@ -148,7 +147,6 @@ void* freelist_allocate(freelist_t* allocator, u64 size) {
         block->allocated     = FREELIST_ALLOCATED_MAGIC;
 
         mutex_unlock(allocator->mutex);
-        freelist_check_health(allocator);
         return ((void*)block) + sizeof(freelist_block_t);
     }
 
@@ -161,7 +159,6 @@ void* freelist_allocate(freelist_t* allocator, u64 size) {
         SERROR("\tBlock Size: 0x%x", block->size);
         explicit = explicit->next;
     }
-    freelist_check_health(allocator);
 #endif
     SCRITICAL("Freelist failed to allocate block.");
     return NULL;
@@ -226,7 +223,6 @@ void freelist_free(freelist_t* allocator, void* address) {
             }
             allocator->first_free_block = new_explicit;
             mutex_unlock(allocator->mutex);
-            freelist_check_health(allocator);
             return;
         case coalesce_state_previous:
             previous_block = (void*)previous_block - previous_block->size - sizeof(freelist_block_t);
@@ -238,7 +234,6 @@ void freelist_free(freelist_t* allocator, void* address) {
             block_header->allocated = FREELIST_FREE_MAGIC;
 
             mutex_unlock(allocator->mutex);
-            freelist_check_health(allocator);
             return;
         case coalesce_state_next:
             block->allocated = FREELIST_FREE_MAGIC;
@@ -258,7 +253,6 @@ void freelist_free(freelist_t* allocator, void* address) {
             new_explicit->previous = next_explicit->previous;
 
             mutex_unlock(allocator->mutex);
-            freelist_check_health(allocator);
             return;
         case coalesce_state_all:
             // NOTE: DO NOT TOUCH THIS. IT IS JANKY AND HELD TOGETHER WITH PRAYER AND DUCT TAPE
@@ -302,7 +296,6 @@ void freelist_free(freelist_t* allocator, void* address) {
             }
 
             mutex_unlock(allocator->mutex);
-            freelist_check_health(allocator);
             return;
     }
 
@@ -327,18 +320,17 @@ void freelist_free(freelist_t* allocator, void* address) {
     }
     allocator->first_free_block           = new_explicit;
     mutex_unlock(allocator->mutex);
-    freelist_check_health(allocator);
 }
 
 #ifdef SPARK_DEBUG
 void freelist_check_health(freelist_t* allocator) {
     mutex_lock(allocator->mutex);
-    // u64 allocated = 0;
+    u64 allocated = 0;
     u64 free_all = 0;
     u64 free_explicit = 0;
-    // u64 capacity = allocator->capacity;
-    // u64 total_block_count = 0;
-    // u64 allocated_block_count = 0;
+    u64 capacity = allocator->capacity;
+    u64 total_block_count = 0;
+    u64 allocated_block_count = 0;
     u64 free_block_count = 0;
 
     freelist_block_t* block = allocator->memory + sizeof(freelist_block_t);
@@ -352,8 +344,8 @@ void freelist_check_health(freelist_t* allocator) {
 
         u32 offset = (void*)block - allocator->memory + sizeof(freelist_block_t);
         if (block->allocated == FREELIST_ALLOCATED_MAGIC) {
-            // allocated += block->size;
-            // allocated_block_count++;
+            allocated += block->size;
+            allocated_block_count++;
             block_buffer_len += sprintf(block_buffer + block_buffer_len, "| A (0x%x) 0x%x ", offset, block->size);
 
         } else { 
@@ -382,7 +374,7 @@ void freelist_check_health(freelist_t* allocator) {
         }
 
         block = (void*)block + block->size + sizeof(freelist_block_t) * 2;
-        // total_block_count++;
+        total_block_count++;
         if (block->size <= 0) {
             break;
         }
@@ -414,15 +406,15 @@ void freelist_check_health(freelist_t* allocator) {
         }
     }
 
-    // SDEBUG("Freelist Health:\n\t"
-    //         "All Free             : 0x%lx\n\t"
-    //         "Explicit Free        : 0x%lx\n\t"
-    //         "Allocated            : 0x%lx\n\t"
-    //         "Capacity             : 0x%lx\n\t"
-    //         "Block Count          : %d\n\t"
-    //         "Explicit block count : %d\n\t"
-    //         "Free block count     : %d\n\t"
-    //         "Allocated Block Count: %d", free_all, free_explicit, allocated, capacity, total_block_count, explicit_block_count, free_block_count, allocated_block_count);
+    SDEBUG("Freelist Health:\n\t"
+            "All Free             : 0x%lx\n\t"
+            "Explicit Free        : 0x%lx\n\t"
+            "Allocated            : 0x%lx\n\t"
+            "Capacity             : 0x%lx\n\t"
+            "Block Count          : %d\n\t"
+            "Explicit block count : %d\n\t"
+            "Free block count     : %d\n\t"
+            "Allocated Block Count: %d", free_all, free_explicit, allocated, capacity, total_block_count, explicit_block_count, free_block_count, allocated_block_count);
     SASSERT(free_block_count == explicit_block_count, "Free block count and explicit block count do not match: %d != %d", free_block_count, explicit_block_count);
     SASSERT(free_all == free_explicit, "Freelist: All free block size not equal to explicit free size: 0x%x != 0x%x", free_all, free_explicit);
     SASSERT(allocator->first_free_block->previous == NULL, "First explicit cannot have previous.");

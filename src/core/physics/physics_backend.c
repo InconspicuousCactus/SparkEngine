@@ -4,9 +4,16 @@
 #include "Spark/ecs/ecs.h"
 #include "Spark/ecs/ecs_world.h"
 #include "Spark/ecs/entity.h"
+#include "Spark/math/mat4.h"
+#include "Spark/math/math_types.h"
 #include "Spark/math/quat.h"
 #include "Spark/memory/linear_allocator.h"
 #include "Spark/physics/physics.h"
+#include "Spark/renderer/material.h"
+#include "Spark/renderer/mesh.h"
+#include "Spark/renderer/renderer_frontend.h"
+#include "Spark/types/aabb.h"
+#include "Spark/types/darrays/math_darrays.h"
 #include "Spark/types/transforms.h"
 #include "joltc.h"
 
@@ -18,6 +25,14 @@ typedef struct physics_state {
     JPH_ObjectVsBroadPhaseLayerFilter* object_to_broadphase_filert;
     JPH_PhysicsSystem*                 system;
     JPH_BodyInterface*                 body_interface;
+#ifdef SPARK_DEBUG
+    JPH_DebugRenderer*                 debug_renderer;
+    JPH_DebugRenderer_Procs debug_procs;
+    darray_vertex_3d_t vertex_buffer;
+    darray_u32_t index_buffer;
+    entity_t renderer_entity;
+    mesh_t render_mesh;
+#endif
 } physics_state_t;
 
 static physics_state_t* state;
@@ -28,6 +43,12 @@ b8 jph_error(const char* expression, const char* message, const char* file, uint
 void physics_step_system(ecs_iterator_t* iterator);
 
 JPH_MotionType convert_motion_type(physics_motion_t);
+
+#ifdef SPARK_DEBUG
+void debug_draw_triangle(void* user_data, const JPH_RVec3* v1, const JPH_RVec3* v2, const JPH_RVec3* v3, JPH_Color color, JPH_DebugRenderer_CastShadow castShadow);
+	void debug_draw_line(void* userData, const JPH_RVec3* from, const JPH_RVec3* to, JPH_Color color);
+	void debug_draw_text3d(void* userData, const JPH_RVec3* position, const char* str, JPH_Color color, float height);
+#endif
 
 // Sanity checking
 STATIC_ASSERT(sizeof(vec3) == sizeof(JPH_Vec3), "Size of vector3 must match size of JPH_Vec3");
@@ -92,11 +113,28 @@ void physics_backend_initialize(linear_allocator_t* allocator) {
         .name = "Physics",
     };
     ecs_system_create(world, &phsyics_step_create);
+
+#ifdef SPARK_DEBUG
+    // Debug renderer
+    state->debug_renderer = JPH_DebugRenderer_Create(state);
+    state->debug_procs = (JPH_DebugRenderer_Procs) {
+        .DrawLine = debug_draw_line,
+        .DrawText3D = debug_draw_text3d,
+        .DrawTriangle = debug_draw_triangle,
+    };
+    JPH_DebugRenderer_SetProcs(&state->debug_procs);
+
+    darray_vertex_3d_create(8192, &state->vertex_buffer);
+    darray_u32_create(8192, &state->index_buffer);
+
+    state->renderer_entity = entity_create(world);
+    ENTITY_SET_COMPONENT(world, state->renderer_entity, local_to_world_t, { mat4_identity() });
+    ENTITY_SET_COMPONENT(world, state->renderer_entity, aabb_t, { });
+    ENTITY_SET_COMPONENT(world, state->renderer_entity, material_t, *renderer_get_default_types().material);
+#endif
 }
 
 void physics_backend_shutdown() {
-    // Remove the destroy sphere from the physics system. Note that the sphere itself keeps all of its state and can be re-added at any time.
-    // JPH_BodyInterface_RemoveAndDestroyBody(state->bodyInterface, sphereId);
     JPH_JobSystem_Destroy(state->job_system);
 
     JPH_PhysicsSystem_Destroy(state->system);
@@ -186,6 +224,22 @@ void physics_step_system(ecs_iterator_t* iterator) {
     rotation_t* rotations = ECS_ITERATOR_GET_COMPONENTS(iterator, 3);
     dirty_transform_t* dirty = ECS_ITERATOR_GET_COMPONENTS(iterator, 4);
 
+    // // HACK: Should not have debug rendering here.
+    // constexpr const JPH_RVec3 center = { };
+    // JPH_DebugRenderer_DrawSphere(state->debug_renderer, &center, 5, 1, JPH_DebugRenderer_CastShadow_Off, JPH_DebugRenderer_DrawMode_Solid);
+    // JPH_DebugRenderer_NextFrame(state->debug_renderer);
+    // if (state->vertex_buffer.count > 0) {
+    //     mesh_t mesh = renderer_create_mesh(state->vertex_buffer.data, state->vertex_buffer.count, sizeof(vertex_3d_t), state->index_buffer.data, state->index_buffer.count, sizeof(u32));
+    //     ENTITY_SET_COMPONENT(iterator->world, state->renderer_entity, mesh_t, mesh);
+    //
+    //     if (state->render_mesh.internal_offset != INVALID_ID) {
+    //         renderer_destroy_mesh(&state->render_mesh);
+    //     }
+    //     state->render_mesh = mesh;
+    // }
+    // state->vertex_buffer.count = 0;
+    // state->index_buffer.count = 0;
+
     for (u32 i = 0; i < iterator->entity_count; i++) {
         // Output current position and velocity of the sphere
         JPH_BodyID id = bodies[i].id;
@@ -249,9 +303,7 @@ JPH_MotionType convert_motion_type(physics_motion_t motion) {
 
 void physics_body_destroy(void* component) {
     physics_body_t* body = component;
-    SDEBUG("Attempting to remove body %p / %d", body, body->id);
     if (JPH_BodyInterface_IsActive(state->body_interface, body->id)) {
-        SDEBUG("Removing body %p / %d", body, body->id);
         JPH_Shape* shape =(JPH_Shape*)JPH_BodyInterface_GetShape(state->body_interface, body->id); 
         if (shape) {
             JPH_Shape_Destroy(shape);
@@ -259,3 +311,25 @@ void physics_body_destroy(void* component) {
         JPH_BodyInterface_RemoveAndDestroyBody(state->body_interface, body->id);
     }
 }
+
+#ifdef SPARK_DEBUG 
+void debug_draw_triangle(void* user_data, const JPH_RVec3* v1, const JPH_RVec3* v2, const JPH_RVec3* v3, JPH_Color color, JPH_DebugRenderer_CastShadow castShadow) {
+    u32 vertex_offset = state->vertex_buffer.count;
+
+    darray_vertex_3d_push(&state->vertex_buffer, (vertex_3d_t) { .position = *(vec3*)v1 });
+    darray_vertex_3d_push(&state->vertex_buffer, (vertex_3d_t) { .position = *(vec3*)v2 });
+    darray_vertex_3d_push(&state->vertex_buffer, (vertex_3d_t) { .position = *(vec3*)v3 });
+
+    darray_u32_push(&state->index_buffer, vertex_offset + 0);
+    darray_u32_push(&state->index_buffer, vertex_offset + 1);
+    darray_u32_push(&state->index_buffer, vertex_offset + 2);
+    // SDEBUG("Drawing triangle.");
+}
+
+void debug_draw_line(void* userData, const JPH_RVec3* from, const JPH_RVec3* to, JPH_Color color) {
+    SDEBUG("Trying to draw line.");
+}
+void debug_draw_text3d(void* userData, const JPH_RVec3* position, const char* str, JPH_Color color, float height) {
+    SDEBUG("Trying to draw text3d.");
+}
+#endif

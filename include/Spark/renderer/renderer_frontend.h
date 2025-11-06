@@ -19,6 +19,8 @@ texture_t  renderer_create_image_from_path(const char* path, texture_filter_t fi
 texture_t  renderer_create_image_from_data(const char* data, u32 width, u32 height, u32 channels, texture_filter_t filter);
 material_t renderer_create_material       (material_config_t* config);
 
+const renderer_defaults_t renderer_get_default_types();
+
 void renderer_set_skybox(material_t* material);
 
 vec2 renderer_get_screen_size();

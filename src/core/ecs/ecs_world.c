@@ -1,5 +1,6 @@
 #include "Spark/ecs/ecs_world.h"
 #include "Spark/core/clock.h"
+#include "Spark/core/sstring.h"
 #include "Spark/ecs/ecs.h"
 #include "Spark/ecs/entity.h"
 #include "Spark/memory/linear_allocator.h"
@@ -87,6 +88,10 @@ ecs_component_id ecs_world_component_define(ecs_world_t* world, const char* name
 }
 
 void ecs_world_progress() {
+#ifdef SPARK_DEBUG
+    static char system_debug_buffer[8192] = {};
+    u32 debug_buffer_offset = 0;
+#endif
     for (u32 phase = 0; phase < ECS_PHASE_ENUM_MAX; phase++) {
         for (u32 i = 0; i < pvt_ecs_world->systems[phase].count; i++) {
             ecs_system_t* system = &pvt_ecs_world->systems[phase].data[i];
@@ -99,6 +104,8 @@ void ecs_world_progress() {
             clock_update(&clock);
             system->runtime += clock.elapsed_time;
             system->calls++;
+            debug_buffer_offset += string_format(system_debug_buffer + debug_buffer_offset, "%s: %.2fms (%f\%)\n", system->name, clock.elapsed_time * 1000, clock.elapsed_time / (1.0f / 60) * 100);
+            // SDEBUG(system_debug_buffer);
 #endif
         }
     }

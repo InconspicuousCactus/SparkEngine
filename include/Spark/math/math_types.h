@@ -1,4 +1,5 @@
 #pragma once
+#include "Spark/containers/darray.h"
 #include "Spark/defines.h"
 
 typedef struct vec2 {
@@ -44,5 +45,4 @@ typedef struct vertex_3d {
 typedef struct vertex_2d {
     vec2 position;
     vec2 texcoord;
-} vertex_2d;
-
+} vertex_2d_t;

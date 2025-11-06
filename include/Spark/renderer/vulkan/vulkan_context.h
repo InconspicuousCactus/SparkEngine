@@ -5,6 +5,7 @@
 #include "Spark/memory/block_allocator.h"
 #include "Spark/memory/freelist.h"
 #include "Spark/renderer/renderer_types.h"
+#include "Spark/renderer/renderpasses.h"
 #include "Spark/renderer/vulkan/vulkan_buffer.h"
 #include "Spark/renderer/vulkan/vulkan_command_buffer.h"
 #include "Spark/renderer/vulkan/vulkan_material.h"
@@ -29,7 +30,7 @@
 
 typedef struct indirect_draw_info {
     u32 command_index;
-    u32 shader_type;
+    builtin_renderpass_t shader_type;
     material_t* material;
 } indirect_draw_info_t;
 
@@ -73,6 +74,7 @@ typedef struct vulkan_context {
     VkFence in_flight_fences[SWAPCHAIN_MAX_IMAGE_COUNT];
 
     vulkan_renderpass_t renderpasses[BUILTIN_RENDERPASS_ENUM_MAX];
+    darray_mat4_t local_instance_buffer;
 
     // Descriptor pools
     VkDescriptorPool descriptor_pool;
@@ -84,7 +86,6 @@ typedef struct vulkan_context {
     vulkan_buffer_t instance_buffer;
     
     vulkan_indirect_render_info_t indirect_draw_infos[SWAPCHAIN_MAX_IMAGE_COUNT];
-    darray_mat4_t local_instance_buffer;
 
     vulkan_buffer_t vertex_buffer;
     freelist_t vertex_buffer_freelist;
@@ -102,6 +103,8 @@ typedef struct vulkan_context {
     vulkan_image_t    default_texture;
     vulkan_shader_t*   default_shader;
     vulkan_material_t* default_material;
+
+    renderer_defaults_t default_types;
 
     block_allocator_t   shader_allocator;
     block_allocator_t   material_allocator;

@@ -66,9 +66,10 @@ void anchor_ui(ecs_iterator_t* iterator) {
     const vec2 screen_size = renderer_get_screen_size();
     for (u32 i = 0; i < iterator->entity_count; i++) {
         vec3 pos = {
-            .x = screen_size.x * (anchors[i].pos.x + 1) / 2,
-            .y = screen_size.y * (anchors[i].pos.y + 1) / 2,
+            .x = screen_size.x * (anchors[i].pos.x + 0) / 1,
+            .y = screen_size.y * (-anchors[i].pos.y + 0) / 1,
         };
         locals[i].value = mat4_translation(pos);
+        // locals[i].value = mat4_identity();
     }
 }
